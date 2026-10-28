@@ -8,13 +8,20 @@ enum WorkbenchChrome {
     static let bar = Color(nsColor: .controlBackgroundColor)
     // IDEA-style surfaces: use small tonal steps first, and reserve a line for
     // the few places where a resizable boundary needs a tactile affordance.
-    static let panel = Color(nsColor: .underPageBackgroundColor)
-    static let raised = Color(nsColor: .controlBackgroundColor)
+    static let panel = Color(nsColor: dynamicColor("panel", light: (0.975, 0.976, 0.982), dark: (0.125, 0.13, 0.145)))
+    static let raised = Color(nsColor: dynamicColor("raised", light: (1.0, 1.0, 1.0), dark: (0.15, 0.155, 0.17)))
     static let separator = Color(nsColor: .separatorColor).opacity(0.34)
     static let quietSeparator = Color(nsColor: .separatorColor).opacity(0.16)
     static let selectedSurface = Color(nsColor: .selectedContentBackgroundColor).opacity(0.22)
     static let selectedBorder = Color(nsColor: .controlAccentColor).opacity(0.30)
     static let rowHeight: CGFloat = 30
+
+    private static func dynamicColor(_ name: String, light: (CGFloat, CGFloat, CGFloat), dark: (CGFloat, CGFloat, CGFloat)) -> NSColor {
+        NSColor(name: NSColor.Name("CodeFlight.chrome." + name)) { appearance in
+            let value = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+            return NSColor(calibratedRed: value.0, green: value.1, blue: value.2, alpha: 1)
+        }
+    }
 }
 
 /// A single bounded, downsampled image per window. Never decode a wallpaper as
