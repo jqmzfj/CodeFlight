@@ -13,6 +13,10 @@ struct SettingsView: View {
     }
 
     private func text(_ zh: String, _ en: String) -> String { Copy.t(zh, en, language: model.language) }
+    private var isCheckingForUpdates: Bool {
+        if case .checking = updateState { return true }
+        return false
+    }
     private var backgroundSelection: Binding<String> {
         Binding(get: {
             switch model.background {
@@ -35,6 +39,9 @@ struct SettingsView: View {
                 Label(text("外观与语言", "Appearance & Language"), systemImage: "paintbrush")
                     .font(.system(size: 14, weight: .semibold))
                 Spacer()
+                Button { checkForUpdates() } label: {
+                    Label(text("检查更新", "Check for updates"), systemImage: "arrow.down.circle")
+                }.controlSize(.small).disabled(isCheckingForUpdates)
                 Button(text("关闭", "Close")) { dismiss() }
                     .keyboardShortcut(.cancelAction)
             }.padding(16)
