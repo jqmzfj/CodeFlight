@@ -42,7 +42,29 @@ struct GitGraphCell: View {
     // Native Table adds four points above and below each cell. Extend the
     // drawing through those insets without increasing the content row height.
     var verticalOverflow: CGFloat = 0
-    private let palette: [Color] = [.accentColor, .purple, .teal, .orange, .pink, .green]
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: [Color] {
+        // JetBrains keeps VCS lanes muted and stable: gold for the primary
+        // lane, then restrained purple/olive/gray accents for branches.
+        if colorScheme == .dark {
+            return [
+                Color(red: 0.74, green: 0.58, blue: 0.22),
+                Color(red: 0.58, green: 0.48, blue: 0.72),
+                Color(red: 0.45, green: 0.58, blue: 0.34),
+                Color(red: 0.55, green: 0.55, blue: 0.55),
+                Color(red: 0.72, green: 0.43, blue: 0.26),
+                Color(red: 0.36, green: 0.62, blue: 0.62)
+            ]
+        }
+        return [
+            Color(red: 0.64, green: 0.44, blue: 0.10),
+            Color(red: 0.42, green: 0.32, blue: 0.62),
+            Color(red: 0.28, green: 0.50, blue: 0.28),
+            Color(red: 0.42, green: 0.42, blue: 0.42),
+            Color(red: 0.68, green: 0.34, blue: 0.17),
+            Color(red: 0.22, green: 0.48, blue: 0.50)
+        ]
+    }
     private func x(_ lane: Int) -> CGFloat { CGFloat(min(lane, 11)) * 12 + 8 }
     var body: some View {
         Canvas { context, size in
