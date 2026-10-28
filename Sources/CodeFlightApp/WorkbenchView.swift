@@ -68,13 +68,11 @@ struct WorkbenchView: View {
             backgroundView
             VStack(alignment: .leading, spacing: 0) {
                 projectTabs
-                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                 HStack(spacing: 0) {
                     toolRail
                     SplitDivider(axis: .vertical, dimension: $toolRailWidth, range: 36...72,
                                  reset: { toolRailWidth = 44 },
                                  commit: { UserDefaults.standard.set(toolRailWidth, forKey: "layout.toolRailWidth") })
-                    Rectangle().fill(WorkbenchChrome.quietSeparator).frame(width: 1)
                     if bottomToolExpanded {
                         WorkbenchSplit("main.bottom.\(bottomTool.rawValue)", axis: .horizontal,
                             initial: bottomTool == .gitTree ? 280 : 180, minimum: 160, otherMinimum: upperWorkspaceMinimumHeight,
@@ -320,7 +318,6 @@ struct WorkbenchView: View {
         }
         .frame(height: 34)
         .background(WorkbenchChrome.bar)
-        .overlay(alignment: .bottom) { Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1) }
     }
 
     private var toolRail: some View {
@@ -356,7 +353,6 @@ struct WorkbenchView: View {
         .padding(.vertical, 8)
         .frame(width: toolRailWidth)
         .background(WorkbenchChrome.bar)
-        .overlay(alignment: .trailing) { Rectangle().fill(WorkbenchChrome.quietSeparator).frame(width: 1) }
     }
 
     private func preferredToolHeight(_ tool: BottomTool) -> CGFloat {
@@ -414,14 +410,22 @@ struct WorkbenchView: View {
         if sidebarVisible {
             WorkbenchSplit("main.sidebar", initial: 285, minimum: topPanel == .git ? 240 : 180, otherMinimum: 360,
                            dimension: $sidebarWidth) {
-                topSidebar
+                floatingPane(topSidebar)
             } second: {
-                content
+                floatingPane(content)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            content.frame(maxWidth: .infinity, maxHeight: .infinity)
+            floatingPane(content).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private func floatingPane<Content: View>(_ content: Content) -> some View {
+        content
+            .background(WorkbenchChrome.panel, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.07), lineWidth: 0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(7)
     }
 
     @ViewBuilder private var topSidebar: some View {
@@ -502,7 +506,6 @@ struct WorkbenchView: View {
                         Button { withAnimation(.easeInOut(duration: 0.18)) { bottomToolExpanded = false } } label: { Image(systemName: "xmark") }.buttonStyle(.plain).foregroundStyle(.secondary)
                             .accessibilityLabel(Copy.t("隐藏工具窗口", "Hide tool window", language: model.language)).help(Copy.t("隐藏工具窗口", "Hide tool window", language: model.language))
                     }.padding(.horizontal, 12).frame(height: WorkbenchChrome.rowHeight).background(WorkbenchChrome.bar)
-                    Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                     Group {
                         switch bottomTool {
                         case .processes: ProcessTool(model: model)
@@ -514,6 +517,10 @@ struct WorkbenchView: View {
                         }
                     }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).background(WorkbenchChrome.editor)
                 }
+                .background(WorkbenchChrome.panel, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.07), lineWidth: 0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(7)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         } else { Color.clear.frame(height: 0).transition(.opacity) }

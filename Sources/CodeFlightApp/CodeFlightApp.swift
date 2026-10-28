@@ -2005,13 +2005,14 @@ final class SplitDividerView: NSView {
         addCursorRect(bounds, cursor: axis == .vertical ? .resizeLeftRight : .resizeUpDown)
     }
     override func draw(_ dirtyRect: NSRect) {
-        (hovering || window?.firstResponder === self ? NSColor.controlAccentColor.withAlphaComponent(0.16) : NSColor.windowBackgroundColor).setFill()
+        (hovering || window?.firstResponder === self ? NSColor.controlAccentColor.withAlphaComponent(0.10) : NSColor.clear).setFill()
         bounds.fill()
-        NSColor.separatorColor.withAlphaComponent(0.5).setFill()
-        let line = axis == .vertical
-            ? NSRect(x: bounds.midX - 0.5, y: 0, width: 1, height: bounds.height)
-            : NSRect(x: 0, y: bounds.midY - 0.5, width: bounds.width, height: 1)
-        line.fill()
+        guard hovering || window?.firstResponder === self else { return }
+        NSColor.controlAccentColor.withAlphaComponent(0.42).setFill()
+        let handle = axis == .vertical
+            ? NSRect(x: bounds.midX - 1, y: max(8, bounds.midY - 14), width: 2, height: 28)
+            : NSRect(x: max(8, bounds.midX - 14), y: bounds.midY - 1, width: 28, height: 2)
+        NSBezierPath(roundedRect: handle, xRadius: 1, yRadius: 1).fill()
     }
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)

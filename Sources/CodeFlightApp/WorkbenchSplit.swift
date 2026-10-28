@@ -13,6 +13,8 @@ enum WorkbenchLayout {
 
 
 enum SplitSizing {
+    // Keep the existing sizing contract; floating pane padding supplies the
+    // visual gap while the divider itself stays an invisible drag target.
     static let divider: CGFloat = 5
 
     static func bounds(extent: CGFloat, minimum: CGFloat, otherMinimum: CGFloat) -> ClosedRange<CGFloat> {
