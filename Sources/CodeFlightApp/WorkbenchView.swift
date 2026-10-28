@@ -478,10 +478,11 @@ struct WorkbenchView: View {
                 VStack(spacing: 0) {
                     HStack(spacing: 12) {
                         if bottomTool == .gitTree {
-                            Picker("Git", selection: $showGitOperations) {
-                                Text(Copy.t("提交日志", "Commits", language: model.language)).tag(false)
-                                Text(Copy.t("操作记录", "Operations", language: model.language)).tag(true)
-                            }.labelsHidden().pickerStyle(.segmented).controlSize(.small).frame(width: 190)
+                            Text("Git").font(.system(size: 11, weight: .semibold))
+                            HStack(spacing: 2) {
+                                WorkbenchToolTab(title: Copy.t("日志", "Log", language: model.language), selected: !showGitOperations) { showGitOperations = false }
+                                WorkbenchToolTab(title: Copy.t("控制台", "Console", language: model.language), selected: showGitOperations) { showGitOperations = true }
+                            }.padding(2).background(WorkbenchChrome.panel, in: RoundedRectangle(cornerRadius: 6))
                         } else {
                             Text(bottomToolName(bottomTool)).font(.system(size: 11, weight: .semibold))
                         }
@@ -700,6 +701,22 @@ struct ProjectTab: View {
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: active)
         .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+private struct WorkbenchToolTab: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title).font(.system(size: 11, weight: selected ? .medium : .regular))
+                .padding(.horizontal, 9).frame(height: 24)
+        }.buttonStyle(.plain)
+            .foregroundStyle(selected ? .primary : .secondary)
+            .background(selected ? WorkbenchChrome.selectedSurface : .clear, in: RoundedRectangle(cornerRadius: 5))
+            .contentShape(RoundedRectangle(cornerRadius: 5))
     }
 }
 
