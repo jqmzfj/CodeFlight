@@ -68,13 +68,13 @@ struct WorkbenchView: View {
             backgroundView
             VStack(alignment: .leading, spacing: 0) {
                 projectTabs
-                Divider().opacity(0.32)
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                 HStack(spacing: 0) {
                     toolRail
                     SplitDivider(axis: .vertical, dimension: $toolRailWidth, range: 36...72,
                                  reset: { toolRailWidth = 44 },
                                  commit: { UserDefaults.standard.set(toolRailWidth, forKey: "layout.toolRailWidth") })
-                    Divider().opacity(0.32)
+                    Rectangle().fill(WorkbenchChrome.quietSeparator).frame(width: 1)
                     if bottomToolExpanded {
                         WorkbenchSplit("main.bottom.\(bottomTool.rawValue)", axis: .horizontal,
                             initial: bottomTool == .gitTree ? 280 : 180, minimum: 160, otherMinimum: upperWorkspaceMinimumHeight,
@@ -311,7 +311,7 @@ struct WorkbenchView: View {
                     if let id { proxy.scrollTo(id, anchor: .center) }
                 }
             }
-            Divider().padding(.vertical, 7)
+            Rectangle().fill(WorkbenchChrome.quietSeparator).frame(width: 1).padding(.vertical, 7)
             Button { model.addProject() } label: { Image(systemName: "plus").frame(width: 34, height: 30) }.buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel(Copy.t("添加项目", "Add project", language: model.language)).help(Copy.t("添加项目", "Add project", language: model.language))
                 .contextMenu {
                     Button(Copy.t("打开本地项目…", "Open local project…", language: model.language)) { model.addProject() }
@@ -329,7 +329,7 @@ struct WorkbenchView: View {
                 Button { if topPanel == .files { sidebarVisible.toggle() } else { topPanel = .files; sidebarVisible = true } } label: { Image(systemName: "folder") }.buttonStyle(RailButtonStyle(active: topPanel == .files && sidebarVisible)).accessibilityLabel(Copy.t("项目文件 ⌘1", "Project ⌘1", language: model.language)).help(Copy.t("项目文件 ⌘1", "Project ⌘1", language: model.language))
                 Button { if topPanel == .git { sidebarVisible.toggle() } else { topPanel = .git; sidebarVisible = true } } label: { Image(systemName: "arrow.triangle.branch") }.buttonStyle(RailButtonStyle(active: topPanel == .git && sidebarVisible)).accessibilityLabel(Copy.t("提交 ⌘0", "Commit ⌘0", language: model.language)).help(Copy.t("提交 ⌘0", "Commit ⌘0", language: model.language)).keyboardShortcut("0", modifiers: .command)
             }
-            Divider().frame(width: 22).padding(.vertical, 6)
+            Rectangle().fill(WorkbenchChrome.quietSeparator).frame(width: 20, height: 1).padding(.vertical, 6)
             VStack(spacing: 0) {
                 ForEach(BottomTool.allCases) { tool in
                     if tool == .console {
@@ -433,7 +433,7 @@ struct WorkbenchView: View {
                     Button { if let project = model.selectedProject { Task { await model.refreshProject(project) } } } label: { Image(systemName: "arrow.clockwise") }
                         .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel(Copy.t("刷新文件", "Refresh files", language: model.language)).help(Copy.t("刷新文件", "Refresh files", language: model.language))
                 }.padding(.horizontal, 12).frame(height: WorkbenchChrome.rowHeight)
-                Divider().opacity(0.4)
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                 if let project = model.selectedProject {
                     VStack(alignment: .leading, spacing: 2) {
                         Label(project.name, systemImage: "folder")
@@ -455,7 +455,7 @@ struct WorkbenchView: View {
                         .font(.system(size: 12)).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                Divider().opacity(0.4)
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                 HStack(spacing: 6) {
                     Image(systemName: "line.3.horizontal.decrease").foregroundStyle(.secondary)
                     TextField(Copy.t("筛选文件", "Filter files", language: model.language), text: $fileSearch)
@@ -464,9 +464,9 @@ struct WorkbenchView: View {
                         .onExitCommand { fileSearchFocused = false }
                     if !fileSearch.isEmpty { Button { fileSearch = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(.secondary) }
                 }.font(.system(size: 11)).padding(.horizontal, 10).frame(height: WorkbenchChrome.rowHeight)
-            }.background(.regularMaterial)
+            }.background(WorkbenchChrome.panel)
         } else {
-            GitChangesPanel(model: model).background(.regularMaterial)
+            GitChangesPanel(model: model).background(WorkbenchChrome.panel)
         }
     }
 
@@ -501,7 +501,7 @@ struct WorkbenchView: View {
                         Button { withAnimation(.easeInOut(duration: 0.18)) { bottomToolExpanded = false } } label: { Image(systemName: "xmark") }.buttonStyle(.plain).foregroundStyle(.secondary)
                             .accessibilityLabel(Copy.t("隐藏工具窗口", "Hide tool window", language: model.language)).help(Copy.t("隐藏工具窗口", "Hide tool window", language: model.language))
                     }.padding(.horizontal, 12).frame(height: WorkbenchChrome.rowHeight).background(WorkbenchChrome.bar)
-                    Divider().opacity(0.4)
+                    Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                     Group {
                         switch bottomTool {
                         case .processes: ProcessTool(model: model)

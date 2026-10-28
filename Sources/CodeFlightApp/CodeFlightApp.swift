@@ -1915,7 +1915,7 @@ enum BottomTool: String, CaseIterable, Identifiable {
     case processes, services, console, gitTree
     var id: String { rawValue }
     var icon: String {
-        switch self { case .processes: "play.rectangle"; case .services: "shippingbox"; case .console: "terminal"; case .gitTree: "arrow.triangle.branch" }
+        switch self { case .processes: "play.circle"; case .services: "shippingbox"; case .console: "terminal"; case .gitTree: "point.3.connected.trianglepath.dotted" }
     }
 }
 

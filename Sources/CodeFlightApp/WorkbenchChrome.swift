@@ -6,10 +6,14 @@ import ImageIO
 enum WorkbenchChrome {
     static let editor = Color(nsColor: .textBackgroundColor)
     static let bar = Color(nsColor: .controlBackgroundColor)
-    static let separator = Color(nsColor: .separatorColor).opacity(0.5)
-    static let quietSeparator = Color(nsColor: .separatorColor).opacity(0.28)
-    static let selectedSurface = Color(nsColor: .selectedContentBackgroundColor).opacity(0.16)
-    static let selectedBorder = Color(nsColor: .controlAccentColor).opacity(0.42)
+    // IDEA-style surfaces: use small tonal steps first, and reserve a line for
+    // the few places where a resizable boundary needs a tactile affordance.
+    static let panel = Color(nsColor: .underPageBackgroundColor)
+    static let raised = Color(nsColor: .controlBackgroundColor)
+    static let separator = Color(nsColor: .separatorColor).opacity(0.34)
+    static let quietSeparator = Color(nsColor: .separatorColor).opacity(0.16)
+    static let selectedSurface = Color(nsColor: .selectedContentBackgroundColor).opacity(0.22)
+    static let selectedBorder = Color(nsColor: .controlAccentColor).opacity(0.30)
     static let rowHeight: CGFloat = 30
 }
 
