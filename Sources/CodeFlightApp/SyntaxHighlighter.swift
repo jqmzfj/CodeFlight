@@ -206,14 +206,16 @@ enum SyntaxHighlighter {
 }
 
 
-/// Xcode-inspired semantic colors with separate light/dark contrast.
+/// JetBrains-inspired semantic colors with separate WebStorm light and
+/// PHPStorm Darcula dark palettes. The colors stay semantic so every supported
+/// language keeps the same visual grammar.
 @MainActor
 enum SyntaxPalette {
-    static let keyword = color("keyword", light: (0.61, 0.14, 0.57), dark: (0.99, 0.37, 0.64))
-    static let type = color("type", light: (0.08, 0.31, 0.68), dark: (0.45, 0.72, 1.0))
-    static let string = color("string", light: (0.77, 0.10, 0.09), dark: (0.99, 0.42, 0.36))
-    static let comment = color("comment", light: (0.36, 0.42, 0.47), dark: (0.48, 0.55, 0.60))
-    static let number = color("number", light: (0.11, 0.13, 0.69), dark: (0.82, 0.75, 0.41))
+    static let keyword = color("keyword", light: (0.46, 0.18, 0.60), dark: (0.80, 0.48, 0.20))
+    static let type = color("type", light: (0.00, 0.32, 0.68), dark: (1.00, 0.79, 0.42))
+    static let string = color("string", light: (0.02, 0.42, 0.12), dark: (0.42, 0.62, 0.36))
+    static let comment = color("comment", light: (0.42, 0.44, 0.46), dark: (0.50, 0.50, 0.50))
+    static let number = color("number", light: (0.08, 0.28, 0.72), dark: (0.41, 0.61, 0.76))
     private static func color(_ name: String, light: (Double, Double, Double), dark: (Double, Double, Double)) -> NSColor {
         NSColor(name: NSColor.Name("Workbench.syntax." + name)) { appearance in
             let rgb = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
