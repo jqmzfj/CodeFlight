@@ -96,6 +96,11 @@ struct GitHistoryNavigator: View {
                             .disabled(model.isGitBusy || model.gitOperationState != nil)
                         Button(text("将当前分支变基到此处…", "Rebase current branch onto this…")) { model.rebaseBranch(reference) }
                             .disabled(model.isGitBusy || model.gitOperationState != nil)
+                        if prefix == "refs/heads/" && current {
+                            Divider()
+                            Button(text("推送…", "Push…")) { model.gitAction(.push) }
+                                .disabled(model.isGitBusy || model.gitOperationState != nil)
+                        }
                         if prefix == "refs/heads/" {
                             Divider()
                             Button(text("删除分支…", "Delete branch…"), role: .destructive) { model.deleteBranch(name) }
