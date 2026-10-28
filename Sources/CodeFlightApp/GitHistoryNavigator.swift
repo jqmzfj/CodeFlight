@@ -53,7 +53,7 @@ struct GitHistoryNavigator: View {
             }.listStyle(.sidebar).scrollContentBackground(.hidden)
                 .accessibilityLabel(text("分支导航", "Branch navigator"))
                 .font(.system(size: 11)).controlSize(.small).environment(\.defaultMinListRowHeight, GitGraphCell.rowHeight)
-        }.frame(maxHeight: .infinity).background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+        }.frame(maxHeight: .infinity).background(WorkbenchChrome.panel)
         .onReceive(NotificationCenter.default.publisher(for: WorkbenchLayout.didReset)) { _ in
             localExpanded = true
             remoteExpanded = true

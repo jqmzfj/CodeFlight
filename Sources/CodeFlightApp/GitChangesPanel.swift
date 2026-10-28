@@ -42,7 +42,8 @@ struct GitChangesPanel: View {
                     Button(text("管理 Stash…", "Manage stashes…")) { showStashSheet = true }
                 } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).fixedSize().disabled(model.isGitBusy || !model.isGitRepository)
             }.buttonStyle(.plain).padding(.horizontal, 12).frame(height: WorkbenchChrome.rowHeight)
-            Divider().opacity(0.4)
+                .background(WorkbenchChrome.raised)
+            Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
             panelContent.padding(.horizontal, 12).padding(.vertical, 10)
         }.frame(maxHeight: .infinity, alignment: .top)
         .sheet(isPresented: $showStashSheet) { StashSheet(model: model) }

@@ -88,7 +88,8 @@ struct GitHistoryPanel: View {
                     Text(scopeTitle).font(.system(size: 10)).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle).frame(maxWidth: 150).help(scopeTitle)
                 }.padding(.horizontal, 8).frame(height: WorkbenchChrome.rowHeight)
-                Divider()
+                .background(WorkbenchChrome.raised)
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                 Table(visibleCommits, selection: $history.selectedHash) {
                     TableColumn(text("提交", "Commit")) { commit in
                         HStack(spacing: 8) {
@@ -125,7 +126,7 @@ struct GitHistoryPanel: View {
                         Text(text("没有匹配的提交", "No matching commits")).font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                Divider()
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                 VStack(alignment: .leading, spacing: 6) {
                     if let failure { Text(failure).font(.caption).foregroundStyle(.orange).textSelection(.enabled).lineLimit(3) }
                     HStack {
@@ -209,7 +210,7 @@ struct GitCommitInspector: View {
                     ScrollView { Text(description).font(.system(size: 10, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }.frame(height: 70)
                 }.font(.system(size: 10)).foregroundStyle(.secondary)
             }.padding(.horizontal, 10).padding(.top, 8)
-            Divider()
+            Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
             if loading { ProgressView().controlSize(.small).padding(10) }
             else if let failure {
                 VStack(alignment: .leading, spacing: 8) {
