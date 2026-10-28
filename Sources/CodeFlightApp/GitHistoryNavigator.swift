@@ -29,9 +29,18 @@ struct GitHistoryNavigator: View {
                 Button(action: manageTags) { Image(systemName: "tag") }
                     .help(text("管理标签", "Manage tags"))
                     .accessibilityLabel(text("管理标签", "Manage tags"))
-            }.buttonStyle(.borderless).padding(.horizontal, 10).padding(.top, 8).padding(.bottom, 6)
-            TextField(text("筛选分支和标签", "Filter branches and tags"), text: $search)
-                .textFieldStyle(.roundedBorder).controlSize(.small).padding(.horizontal, 8).padding(.bottom, 6)
+            }.buttonStyle(.borderless).padding(.horizontal, 10).frame(height: WorkbenchChrome.rowHeight)
+                .background(WorkbenchChrome.raised)
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.tertiary)
+                TextField(text("筛选分支和标签", "Filter branches and tags"), text: $search)
+                    .textFieldStyle(.plain)
+                if !search.isEmpty {
+                    Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain).foregroundStyle(.secondary)
+                }
+            }.font(.system(size: 11)).padding(.horizontal, 8).padding(.vertical, 6)
+                .background(WorkbenchChrome.panel)
                 .onSubmit { selectFirstMatch() }
                 .onExitCommand { search = "" }
                 .accessibilityHint(text("回车选中第一个匹配的分支或标签，Esc 清空筛选。", "Return selects the first matching branch or tag. Escape clears the filter."))
