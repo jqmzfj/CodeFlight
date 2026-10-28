@@ -529,7 +529,6 @@ struct WorkbenchView: View {
     private var content: some View {
         VStack(spacing: 0) {
             editorTabs
-            Divider().opacity(0.3)
             if model.selectedProjectID == nil { EmptyWorkspaceView(model: model) } else if let document = model.conflictDocument { GitConflictEditor(model: model, document: document).id(document.id) } else if model.diffContent.isEmpty { CodePreview(file: model.selectedFile, content: model.fileContent, search: editorSearch, appLanguage: model.language, fontSize: model.editorFontSize, document: model.filePreviewDocument, navigation: editorNavigation, onPrepared: { previewSnapshot = $0 }) } else { GitDiffWorkspace(model: model) }
         }.frame(maxWidth: .infinity).background(Color(nsColor: .textBackgroundColor))
     }
@@ -607,7 +606,6 @@ struct WorkbenchView: View {
         }
         .frame(height: WorkbenchChrome.rowHeight)
         .background(WorkbenchChrome.bar)
-        .overlay(alignment: .top) { Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1) }
     }
 
     private func navigateSearch(_ direction: FileSearchNavigation.Direction) {
@@ -693,11 +691,10 @@ struct ProjectTab: View {
                 .buttonStyle(.plain).foregroundStyle(.secondary).opacity(hovering || active ? 1 : 0)
                 .help(Copy.t("关闭项目", "Close project", language: language))
                 .accessibilityLabel(Copy.t("关闭项目 ", "Close project ", language: language) + project.name)
-            Divider().padding(.vertical, 8)
+            Spacer().frame(width: 4)
         }.fixedSize(horizontal: true, vertical: false)
         .background(active ? WorkbenchChrome.selectedSurface : (hovering ? Color.primary.opacity(0.035) : .clear))
         .overlay(alignment: .bottom) { if active { Rectangle().fill(Color.accentColor.opacity(0.65)).frame(height: 2) } }
-        .overlay(alignment: .top) { Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1) }
         .contentShape(Rectangle())
         .help(project.path)
         .contextMenu {
