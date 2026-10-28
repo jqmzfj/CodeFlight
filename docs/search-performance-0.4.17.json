@@ -1,0 +1,116 @@
+{
+  "scope": "Single optimized component run, 100000 generated lines; before counts matching lines synchronously, after counts occurrences and is called by a detached cancellable task in the UI. Not a cold-disk or input-to-pixel benchmark.",
+  "samples": [
+    {
+      "kind": "before",
+      "query": "value",
+      "count": 100000,
+      "milliseconds": 195.277541
+    },
+    {
+      "kind": "before",
+      "query": "missing",
+      "count": 0,
+      "milliseconds": 216.870125
+    },
+    {
+      "kind": "before",
+      "query": "第",
+      "count": 100000,
+      "milliseconds": 342.153084
+    },
+    {
+      "kind": "after",
+      "query": "value",
+      "count": 200000,
+      "milliseconds": 102.428833
+    },
+    {
+      "kind": "after",
+      "query": "missing",
+      "count": 0,
+      "milliseconds": 47.423791
+    },
+    {
+      "kind": "after",
+      "query": "第",
+      "count": 100000,
+      "milliseconds": 138.264
+    }
+  ],
+  "nativeMainLoopSample": {
+    "maximumMainRunLoopIntervalMS": 366.955459,
+    "p95MainRunLoopIntervalMS": 16.852,
+    "samples": 2847,
+    "build": "unoptimized QA host"
+  },
+  "nativeMainLoopScope": "Same-source isolated full WorkbenchView; 16ms main-run-loop timer during keyboard entry of value, missing and Chinese query after initial file rendering. Measures main-run-loop intervals, not key-to-pixel latency; includes idle intervals and automation overhead.",
+  "memorySample": {
+    "afterLargeSearchResidentMB": 122.609375
+  },
+  "nativeContinuousTypingDebugSample": {
+    "maximumMainRunLoopIntervalMS": 427.550041,
+    "p95MainRunLoopIntervalMS": 119.725458,
+    "samples": 107,
+    "build": "unoptimized QA host, five repeated missing/value sequences; timing not production latency"
+  },
+  "highlightComponentSample": {
+    "bytes": 4377736,
+    "file": "large.swift",
+    "installedMB": 101.46875,
+    "installPaintMS": 91.959541,
+    "lines": 100000,
+    "preparedMB": 54.953125,
+    "prepareMS": 2032.287584,
+    "readMS": 5.964625,
+    "searchSamples": [
+      {
+        "highlightMS": 2.40375,
+        "paintMS": 13.839541,
+        "query": "v"
+      },
+      {
+        "highlightMS": 2.379708,
+        "paintMS": 12.68,
+        "query": "va"
+      },
+      {
+        "highlightMS": 2.406375,
+        "paintMS": 12.603708,
+        "query": "val"
+      },
+      {
+        "highlightMS": 2.230583,
+        "paintMS": 13.510125,
+        "query": "valu"
+      },
+      {
+        "highlightMS": 2.036833,
+        "paintMS": 11.966583,
+        "query": "value"
+      },
+      {
+        "highlightMS": 1.883584,
+        "paintMS": 9.14875,
+        "query": "missing"
+      },
+      {
+        "highlightMS": 1.770417,
+        "paintMS": 10.835208,
+        "query": "第"
+      },
+      {
+        "highlightMS": 2.629541,
+        "paintMS": 14.571333,
+        "query": "value"
+      }
+    ],
+    "startMB": 26.03125
+  },
+  "optimizedNativeContinuousTypingSample": {
+    "maximumMainRunLoopIntervalMS": 130.277459,
+    "p95MainRunLoopIntervalMS": 83.383125,
+    "samples": 100,
+    "scope": "swiftc -O same-source full WorkbenchView, five continuous missing/value query sequences; no AX snapshot during measured interval; 16ms default-mode Timer, not key-to-pixel latency"
+  }
+}

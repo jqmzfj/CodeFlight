@@ -1,0 +1,105 @@
+{
+  "scope": "handler-to-AppKit-draw; actual main app; warm OS cache; not compositor latency",
+  "version": "0.4.28(71)",
+  "rows": [
+    {
+      "handlerToDrawMS": 454.016875,
+      "handlerToReadMS": 250.764708,
+      "drawResidentMB": 121.09375,
+      "handlerToPreparedMS": 411.210291,
+      "processLifetimePeakMB": 121.09375,
+      "file": "large.swift",
+      "startResidentMB": 94.796875
+    },
+    {
+      "handlerToReadMS": 50.645125,
+      "handlerToDrawMS": 111.337417,
+      "drawResidentMB": 115.375,
+      "file": "small.swift",
+      "processLifetimePeakMB": 203.671875,
+      "handlerToPreparedMS": 85.933917,
+      "startResidentMB": 107.484375
+    },
+    {
+      "handlerToPreparedMS": 92.444333,
+      "drawResidentMB": 117.71875,
+      "processLifetimePeakMB": 203.671875,
+      "file": "medium.swift",
+      "startResidentMB": 111.234375,
+      "handlerToDrawMS": 123.918,
+      "handlerToReadMS": 44.772791
+    },
+    {
+      "startResidentMB": 96.1875,
+      "handlerToReadMS": 38.803791,
+      "processLifetimePeakMB": 203.671875,
+      "file": "large.swift",
+      "drawResidentMB": 112.953125,
+      "handlerToPreparedMS": 66.916208,
+      "handlerToDrawMS": 99.971041
+    },
+    {
+      "file": "small.swift",
+      "drawResidentMB": 103.9375,
+      "handlerToPreparedMS": 68.195875,
+      "processLifetimePeakMB": 203.671875,
+      "handlerToDrawMS": 83.358542,
+      "startResidentMB": 95.34375,
+      "handlerToReadMS": 41.257667
+    },
+    {
+      "drawResidentMB": 112.71875,
+      "file": "medium.swift",
+      "handlerToPreparedMS": 73.396708,
+      "handlerToReadMS": 44.621291,
+      "handlerToDrawMS": 102.435458,
+      "processLifetimePeakMB": 203.671875,
+      "startResidentMB": 107.765625
+    },
+    {
+      "handlerToDrawMS": 97.908625,
+      "file": "large.swift",
+      "handlerToReadMS": 40.1195,
+      "processLifetimePeakMB": 203.671875,
+      "handlerToPreparedMS": 68.702167,
+      "startResidentMB": 114.234375,
+      "drawResidentMB": 116.40625
+    },
+    {
+      "drawResidentMB": 113.953125,
+      "startResidentMB": 113.96875,
+      "file": "small.swift",
+      "handlerToReadMS": 43.629625,
+      "handlerToDrawMS": 84.644666,
+      "processLifetimePeakMB": 203.671875,
+      "handlerToPreparedMS": 71.0625
+    },
+    {
+      "handlerToReadMS": 35.826792,
+      "handlerToDrawMS": 91.9385,
+      "handlerToPreparedMS": 63.59075,
+      "drawResidentMB": 118.40625,
+      "file": "medium.swift",
+      "processLifetimePeakMB": 203.671875,
+      "startResidentMB": 114.484375
+    },
+    {
+      "startResidentMB": 118.71875,
+      "handlerToReadMS": 36.625416,
+      "processLifetimePeakMB": 203.671875,
+      "drawResidentMB": 118.75,
+      "file": "large.swift",
+      "handlerToPreparedMS": 65.293041,
+      "handlerToDrawMS": 95.588916
+    },
+    {
+      "handlerToReadMS": 53.78375,
+      "drawResidentMB": 98.21875,
+      "startResidentMB": 94.078125,
+      "handlerToDrawMS": 100.702958,
+      "processLifetimePeakMB": 203.671875,
+      "file": "small.swift",
+      "handlerToPreparedMS": 84.820208
+    }
+  ]
+}
