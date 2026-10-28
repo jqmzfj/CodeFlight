@@ -54,7 +54,8 @@ struct ServicesTool: View {
                 Button { if showsEnvironment { model.refreshEnvironment() } else { model.refreshDocker() } } label: { Label(text("刷新", "Refresh"), systemImage: "arrow.clockwise") }
                     .buttonStyle(.borderless).font(.system(size: 11)).disabled(showsEnvironment ? model.isEnvironmentLoading : model.isDockerLoading || model.dockerBusyContainer != nil)
             }.padding(.horizontal, 12).padding(.vertical, 7)
-            Divider()
+                .background(WorkbenchChrome.raised)
+            Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
                     if showsEnvironment {
@@ -81,7 +82,7 @@ struct ServicesTool: View {
                     }
                 }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
             }
-        }.onAppear {
+        }.background(WorkbenchChrome.panel).onAppear {
             if model.environments.isEmpty { model.refreshEnvironment() }
             if model.dockerContainers.isEmpty { model.refreshDocker() }
         }

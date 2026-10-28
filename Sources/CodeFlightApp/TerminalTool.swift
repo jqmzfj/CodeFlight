@@ -210,7 +210,7 @@ struct TerminalTool: View {
             HStack(spacing: 0) {
                 Text(Copy.t("终端", "Terminal", language: model.language))
                     .font(.system(size: 11, weight: .semibold)).padding(.horizontal, 12)
-                Divider().frame(height: 13)
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(width: 1, height: 13)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 0) {
                         if let project = model.selectedProject {
@@ -231,9 +231,9 @@ struct TerminalTool: View {
                     .help(Copy.t("隐藏工具窗口", "Hide tool window", language: model.language))
             }
             .frame(height: WorkbenchChrome.rowHeight)
-            .background(WorkbenchChrome.bar)
+            .background(WorkbenchChrome.raised)
             .overlay(alignment: .bottom) { Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1) }
-            Divider().opacity(0.4)
+            Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
             if let project = model.selectedProject {
                 if let session = sessions.first(where: { $0.id == terminals.selection[project.id] }) ?? sessions.last {
                     TerminalSurface(session: session, language: model.language).id(session.id)

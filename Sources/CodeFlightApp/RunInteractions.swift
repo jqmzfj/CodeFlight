@@ -142,7 +142,8 @@ struct ProcessTool: View {
                         Button(text("新建运行配置…", "New configuration…")) { model.showRunSettings = true }
                     } label: { Image(systemName: "plus") }.menuStyle(.borderlessButton).fixedSize()
                 }.buttonStyle(.plain).padding(10)
-                Divider()
+                    .background(WorkbenchChrome.raised)
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                 ScrollView {
                     LazyVStack(spacing: 2) {
                         ForEach(tasks.reversed()) { task in
@@ -167,7 +168,7 @@ struct ProcessTool: View {
                         if tasks.isEmpty { Text(text("尚无运行会话", "No run sessions")).font(.caption).foregroundStyle(.secondary).padding(14) }
                     }.padding(5)
                 }
-                Divider()
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                 HStack(spacing: 6) {
                     TextField(text("输入快捷命令，回车运行", "Command; Return to run"), text: $model.commandText)
                         .textFieldStyle(.plain).font(.system(size: 11, design: .monospaced))
@@ -175,7 +176,7 @@ struct ProcessTool: View {
                     Button { model.runCommand(command: model.commandText) } label: { Image(systemName: "play.fill") }
                         .buttonStyle(.plain).disabled(model.commandText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.selectedProjectID == nil)
                         .help(text("运行快捷命令", "Run command"))
-                }.padding(10)
+                }.padding(10).background(WorkbenchChrome.raised)
             }
         } second: {
             if let task = selected {
