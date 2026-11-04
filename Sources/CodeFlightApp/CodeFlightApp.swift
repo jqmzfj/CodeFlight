@@ -239,6 +239,21 @@ final class WorkbenchModel: ObservableObject {
         if let index = projects.firstIndex(where: { $0.id == project.id }) { projects[index].command = configuration.command }
     }
 
+    func redetectRunConfigurations() {
+        guard let project = selectedProject else { return }
+        let url = URL(fileURLWithPath: project.path)
+        Task {
+            let detected = await Task.detached(priority: .userInitiated) { ProjectCommandDetector.detect(at: url) }.value
+            await MainActor.run {
+                if let index = self.projects.firstIndex(where: { $0.id == project.id }) {
+                    self.projects[index].runConfigurations = detected
+                    self.projects[index].runConfigurationsLoaded = true
+                    self.restoreRunSelection(for: project)
+                }
+            }
+        }
+    }
+
     private func restoreRunSelection(for project: Project) {
         guard let current = projects.first(where: { $0.id == project.id }), selectedProjectID == current.id else { return }
         let saved = activeRunConfigurations[current.path] ?? UserDefaults.standard.string(forKey: "run.selected." + current.path).flatMap(UUID.init(uuidString:))
@@ -520,7 +535,7 @@ final class WorkbenchModel: ObservableObject {
         }
     }
 
-    private func runGitOperation(_ project: Project, label: String = #function, onSuccess: (@MainActor () -> Void)? = nil, presentError: Bool = true, completion: (@MainActor (CommandResult) -> Void)? = nil, operation: @escaping @MainActor () async -> CommandResult) {
+    private func runGitOperation(_ project: Project, label: String = #function, refreshAll: Bool = true, onSuccess: (@MainActor () -> Void)? = nil, presentError: Bool = true, completion: (@MainActor (CommandResult) -> Void)? = nil, operation: @escaping @MainActor () async -> CommandResult) {
         guard !gitBusyProjects.contains(project.id) else { return }
         gitBusyProjects.insert(project.id)
         let entryID = beginGitConsoleEntry(projectID: project.id, title: GitConsoleTitle.title(label, language: language))
@@ -530,11 +545,36 @@ final class WorkbenchModel: ObservableObject {
             let result = CommandResult(output: GitDiagnosticRedactor.redact(rawResult.output), status: rawResult.status, truncated: rawResult.truncated)
             finishGitConsoleEntry(entryID, projectID: project.id, result: result, presentError: presentError)
             guard selectedProjectID == project.id else { completion?(result); return }
-            await refreshProject(project)
+            if refreshAll {
+                await refreshProject(project)
+            } else {
+                await refreshGitStatus(project)
+            }
             if selectedProjectID == project.id {
                 if result.status == 0 { onSuccess?() }
             }
             completion?(result)
+        }
+    }
+
+    func refreshGitStatus(_ project: Project) async {
+        guard selectedProjectID == project.id else { return }
+        let url = URL(fileURLWithPath: NSString(string: project.path).expandingTildeInPath)
+        async let statusRead = GitService.status(at: url.path)
+        async let operationRead = GitService.operationState(at: url.path)
+        let status = await statusRead
+        let operation = await operationRead
+        guard selectedProjectID == project.id else { return }
+        gitStatusError = status.error
+        guard status.error == nil else { return }
+        gitChanges = status.changes
+        gitTracking = status.isRepository ? status.tracking : nil
+        gitOperationState = operation
+        if !diffContent.isEmpty && historyCommit == nil && conflictDocument == nil {
+            let relative = String(selectedFile.dropFirst(url.path.count + 1))
+            if let change = status.changes.first(where: { $0.path == relative }) {
+                openDiff(change, staged: diffIsStaged ? change.isStaged : !change.isUnstaged)
+            }
         }
     }
 
@@ -565,7 +605,7 @@ final class WorkbenchModel: ObservableObject {
     }
 
     func runBatchGitOperation(_ project: Project, action: GitFileAction, changes: [GitChange]) {
-        runGitOperation(project, label: "batch.\(action)") { await GitService.batchFileAction(action, changes: changes, at: project.path) }
+        runGitOperation(project, label: "batch.\(action)", refreshAll: action == .discard) { await GitService.batchFileAction(action, changes: changes, at: project.path) }
     }
 
     func gitFileAction(_ action: GitFileAction, path: String, isUntracked: Bool = false) {
@@ -575,7 +615,7 @@ final class WorkbenchModel: ObservableObject {
         }
         if action == .discard && !confirmDestructive(title: language == .chinese ? "丢弃文件修改？" : "Discard file changes?", message: language == .chinese ? "此操作无法撤销。" : "This action cannot be undone.") { return }
         let originalPath = gitChanges.first(where: { $0.path == path })?.originalPath
-        runGitOperation(project, label: "file.\(action)") { await GitService.fileAction(action, path: path, at: project.path, isUntracked: isUntracked, originalPath: originalPath) }
+        runGitOperation(project, label: "file.\(action)", refreshAll: action == .discard) { await GitService.fileAction(action, path: path, at: project.path, isUntracked: isUntracked, originalPath: originalPath) }
     }
 
     func stashAction(_ action: GitStashAction, stash: GitStash, restoreIndex: Bool = false, completion: (@MainActor (CommandResult) -> Void)? = nil) {
@@ -1127,11 +1167,13 @@ final class WorkbenchModel: ObservableObject {
         gitTags = tags
         gitStashes = stashes
         gitRemotes = remotes
-        if let index = projects.firstIndex(where: { $0.id == project.id }), !projects[index].runConfigurationsLoaded {
-            projects[index].runConfigurations = detected
-            projects[index].runConfigurationsLoaded = true
+        if let index = projects.firstIndex(where: { $0.id == project.id }) {
+            if !projects[index].runConfigurationsLoaded || projects[index].runConfigurations.isEmpty {
+                projects[index].runConfigurations = detected
+                projects[index].runConfigurationsLoaded = true
+            }
         }
-        if selectedRunConfigurationID == nil { restoreRunSelection(for: project) }
+        if selectedRunConfigurationID == nil || selectedRunConfiguration == nil { restoreRunSelection(for: project) }
         if let index = projects.firstIndex(where: { $0.id == project.id }), !autoStartedProjects.contains(project.id) {
             autoStartedProjects.insert(project.id)
             for config in projects[index].runConfigurations where config.autoStart {
@@ -1347,9 +1389,11 @@ enum CommandRunner {
             let trackedID = taskID ?? UUID()
             process.executableURL = URL(fileURLWithPath: "/bin/zsh")
             let overrides = interactiveShell ? environment.keys.sorted().filter { $0.range(of: "^[A-Za-z_][A-Za-z0-9_]*$", options: .regularExpression) != nil }.map { "export \($0)=\(Shell.quote(environment[$0] ?? ""))" }.joined(separator: "\n") : ""
-            process.arguments = [interactiveShell ? "-ilc" : "-lc", overrides.isEmpty ? command : overrides + "\n" + command]
+            process.arguments = interactiveShell ? ["+m", "-ilc", overrides.isEmpty ? command : overrides + "\n" + command] : ["-lc", overrides.isEmpty ? command : overrides + "\n" + command]
             process.currentDirectoryURL = URL(fileURLWithPath: NSString(string: cwd).expandingTildeInPath)
             if !environment.isEmpty { process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new } }
+            let inPipe = Pipe()
+            process.standardInput = inPipe
             process.standardOutput = pipe; process.standardError = err
             let stdoutReader = CommandPipeReader(handle: pipe.fileHandleForReading, accumulator: output, onOutput: onOutput, environment: environment)
             let stderrReader = CommandPipeReader(handle: err.fileHandleForReading, accumulator: errorOutput, onOutput: onOutput, environment: environment)
@@ -1717,6 +1761,12 @@ enum ProjectCommandDetector {
         return (try? JSONSerialization.jsonObject(with: bytes)) as? [String: Any]
     }
 
+    private static func fileText(at url: URL, maxBytes: Int = 128 * 1024) -> String? {
+        let bytes = FilePreviewReader.readRange(path: url.path, offset: 0, count: maxBytes)
+        guard !bytes.isEmpty else { return nil }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
     static func detect(at url: URL) -> [RunConfiguration] {
         var result: [RunConfiguration] = []
         let fm = FileManager.default
@@ -1724,44 +1774,171 @@ enum ProjectCommandDetector {
             guard !result.contains(where: { $0.name == name }) else { return }
             result.append(RunConfiguration(name: name, command: command, workingDirectory: url.path))
         }
+
+        // 0. IntelliJ IDEA run configurations (.idea/workspace.xml, .idea/runConfigurations/*.xml)
+        let ideaConfigs = IdeaRunConfigParser.detect(at: url)
+        for cfg in ideaConfigs {
+            add(cfg.name, cfg.command)
+        }
+
+        // 1. Spring Boot & Java (Maven / Gradle)
+        let pomURL = url.appendingPathComponent("pom.xml")
+        let hasMvnw = fm.fileExists(atPath: url.appendingPathComponent("mvnw").path)
+        let mvnCmd = hasMvnw ? "./mvnw" : "mvn"
+        if fm.fileExists(atPath: pomURL.path) {
+            let pomContent = fileText(at: pomURL) ?? ""
+            if pomContent.localizedCaseInsensitiveContains("spring-boot") {
+                if let subdirs = try? fm.contentsOfDirectory(atPath: url.path) {
+                    for sub in subdirs.sorted() where !sub.hasPrefix(".") {
+                        let subPomURL = url.appendingPathComponent("\(sub)/pom.xml")
+                        if fm.fileExists(atPath: subPomURL.path) {
+                            let subPom = fileText(at: subPomURL) ?? ""
+                            if subPom.localizedCaseInsensitiveContains("spring-boot-maven-plugin") ||
+                               sub.hasSuffix("-admin") || sub.hasSuffix("-server") || sub.hasSuffix("-web") || sub.hasSuffix("-app") || sub.hasSuffix("-start") {
+                                add("Spring Boot (\(sub))", "\(mvnCmd) install -DskipTests -am -pl \(sub) && \(mvnCmd) -pl \(sub) spring-boot:run")
+                                add("Spring Boot: run only (\(sub))", "\(mvnCmd) -pl \(sub) spring-boot:run")
+                            }
+                        }
+                    }
+                }
+                add("Spring Boot", "\(mvnCmd) spring-boot:run")
+                add("Maven package", "\(mvnCmd) clean package -DskipTests")
+                add("Maven test", "\(mvnCmd) test")
+            } else {
+                add("Maven test", "\(mvnCmd) test")
+                add("Maven package", "\(mvnCmd) package")
+            }
+        }
+
+        let hasGradlew = fm.fileExists(atPath: url.appendingPathComponent("gradlew").path)
+        let gradleCmd = hasGradlew ? "./gradlew" : "gradle"
+        let gradleURL = url.appendingPathComponent("build.gradle")
+        let gradleKtsURL = url.appendingPathComponent("build.gradle.kts")
+        if fm.fileExists(atPath: gradleURL.path) || fm.fileExists(atPath: gradleKtsURL.path) || hasGradlew {
+            let gradleContent = (fileText(at: gradleURL) ?? "") + (fileText(at: gradleKtsURL) ?? "")
+            if gradleContent.localizedCaseInsensitiveContains("spring-boot") || gradleContent.localizedCaseInsensitiveContains("bootRun") {
+                if let subdirs = try? fm.contentsOfDirectory(atPath: url.path) {
+                    for sub in subdirs.sorted() where !sub.hasPrefix(".") {
+                        let subGradleURL = url.appendingPathComponent("\(sub)/build.gradle")
+                        let subGradleKtsURL = url.appendingPathComponent("\(sub)/build.gradle.kts")
+                        if fm.fileExists(atPath: subGradleURL.path) || fm.fileExists(atPath: subGradleKtsURL.path) {
+                            let subContent = (fileText(at: subGradleURL) ?? "") + (fileText(at: subGradleKtsURL) ?? "")
+                            if subContent.localizedCaseInsensitiveContains("spring-boot") || subContent.localizedCaseInsensitiveContains("bootRun") ||
+                               sub.hasSuffix("-admin") || sub.hasSuffix("-server") || sub.hasSuffix("-web") || sub.hasSuffix("-app") {
+                                add("Spring Boot (\(sub))", "\(gradleCmd) :\(sub):bootRun")
+                            }
+                        }
+                    }
+                }
+                add("Spring Boot", "\(gradleCmd) bootRun")
+                add("Gradle build", "\(gradleCmd) build -x test")
+                add("Gradle test", "\(gradleCmd) test")
+            } else {
+                add("Gradle run", "\(gradleCmd) run")
+                add("Gradle test", "\(gradleCmd) test")
+            }
+        }
+
+        // 2. Frontend (npm / pnpm / yarn / bun) with intelligent script priority
         if let json = manifest(at: url.appendingPathComponent("package.json")), let scripts = json["scripts"] as? [String: Any] {
             let manager: String
             if let packageManager = json["packageManager"] as? String, !packageManager.hasPrefix("@"), let name = packageManager.split(separator: "@").first, ["npm", "pnpm", "yarn", "bun"].contains(String(name)) { manager = String(name) }
             else if fm.fileExists(atPath: url.appendingPathComponent("pnpm-lock.yaml").path) { manager = "pnpm" }
             else if fm.fileExists(atPath: url.appendingPathComponent("yarn.lock").path) { manager = "yarn" }
             else { manager = "npm" }
-            for name in scripts.keys.sorted() {
+
+            let priorityOrder = ["dev", "start", "serve", "watch", "build", "preview", "test"]
+            let sortedKeys = scripts.keys.sorted { k1, k2 in
+                let idx1 = priorityOrder.firstIndex(of: k1) ?? Int.max
+                let idx2 = priorityOrder.firstIndex(of: k2) ?? Int.max
+                if idx1 != idx2 { return idx1 < idx2 }
+                return k1 < k2
+            }
+            for name in sortedKeys {
                 let command = "\(manager) run \(Shell.quote(name))"
                 add("\(manager) \(name)", command)
             }
         }
-        if fm.fileExists(atPath: url.appendingPathComponent("Makefile").path) { add("Make", "make") }
-        if fm.fileExists(atPath: url.appendingPathComponent("Cargo.toml").path) { add("Cargo run", "cargo run") }
-        if fm.fileExists(atPath: url.appendingPathComponent("go.mod").path) { add("Go run", "go run .") }
-        if fm.fileExists(atPath: url.appendingPathComponent("Package.swift").path) { add("Swift run", "swift run") }
-        if fm.fileExists(atPath: url.appendingPathComponent("pyproject.toml").path) { add("Python package", "python3 -m pip install -e .") }
-        if let json = manifest(at: url.appendingPathComponent("composer.json")), let scripts = json["scripts"] as? [String: Any] {
-            for name in scripts.keys.sorted() { add("Composer \(name)", "composer run-script \(Shell.quote(name))") }
+
+        // 3. Go
+        if fm.fileExists(atPath: url.appendingPathComponent("go.mod").path) {
+            add("Go run", "go run .")
+            add("Go test", "go test -v ./...")
+            add("Go build", "go build -v .")
+        } else if fm.fileExists(atPath: url.appendingPathComponent("main.go").path) {
+            add("Go run main", "go run main.go")
         }
+
+        // 4. PHP (Laravel / ThinkPHP / Native server / Composer)
+        if fm.fileExists(atPath: url.appendingPathComponent("artisan").path) {
+            add("Laravel server", "php artisan serve")
+        }
+        if fm.fileExists(atPath: url.appendingPathComponent("think").path) {
+            add("ThinkPHP server", "php think run")
+        }
+        if fm.fileExists(atPath: url.appendingPathComponent("public/index.php").path) {
+            add("PHP server", "php -S localhost:8000 -t public")
+        } else if fm.fileExists(atPath: url.appendingPathComponent("index.php").path) {
+            add("PHP server", "php -S localhost:8000")
+        }
+        if let json = manifest(at: url.appendingPathComponent("composer.json")), let scripts = json["scripts"] as? [String: Any] {
+            let composerPriority = ["start", "dev", "serve", "test"]
+            let sortedKeys = scripts.keys.sorted { k1, k2 in
+                let idx1 = composerPriority.firstIndex(of: k1) ?? Int.max
+                let idx2 = composerPriority.firstIndex(of: k2) ?? Int.max
+                if idx1 != idx2 { return idx1 < idx2 }
+                return k1 < k2
+            }
+            for name in sortedKeys { add("Composer \(name)", "composer run-script \(Shell.quote(name))") }
+        }
+
+        // 5. Python (Django / FastAPI / Flask / Main / Pytest)
+        if fm.fileExists(atPath: url.appendingPathComponent("manage.py").path) {
+            add("Django server", "python3 manage.py runserver")
+        }
+        let mainPyURL = url.appendingPathComponent("main.py")
+        let appPyURL = url.appendingPathComponent("app.py")
+        if fm.fileExists(atPath: mainPyURL.path) {
+            let content = fileText(at: mainPyURL) ?? ""
+            if content.localizedCaseInsensitiveContains("fastapi") {
+                add("FastAPI server", "python3 -m uvicorn main:app --reload")
+            } else if content.localizedCaseInsensitiveContains("flask") {
+                add("Flask server", "flask run --debug")
+            } else {
+                add("Python main", "python3 main.py")
+            }
+        }
+        if fm.fileExists(atPath: appPyURL.path) {
+            let content = fileText(at: appPyURL) ?? ""
+            if content.localizedCaseInsensitiveContains("flask") {
+                add("Flask server", "flask run --debug")
+            } else if content.localizedCaseInsensitiveContains("fastapi") {
+                add("FastAPI server", "python3 -m uvicorn app:app --reload")
+            } else {
+                add("Python app", "python3 app.py")
+            }
+        }
+        if fm.fileExists(atPath: url.appendingPathComponent("requirements.txt").path) {
+            add("Python dependencies", "python3 -m pip install -r requirements.txt")
+        }
+        if fm.fileExists(atPath: url.appendingPathComponent("pyproject.toml").path) {
+            add("Python package", "python3 -m pip install -e .")
+        }
+        if fm.fileExists(atPath: url.appendingPathComponent("pytest.ini").path) ||
+           fm.fileExists(atPath: url.appendingPathComponent("conftest.py").path) ||
+           fm.fileExists(atPath: url.appendingPathComponent("tests").path) {
+            add("Pytest", "pytest")
+        }
+
+        // 6. Native & Containers
+        if fm.fileExists(atPath: url.appendingPathComponent("Package.swift").path) { add("Swift run", "swift run") }
+        if fm.fileExists(atPath: url.appendingPathComponent("Cargo.toml").path) { add("Cargo run", "cargo run") }
+        if fm.fileExists(atPath: url.appendingPathComponent("Makefile").path) { add("Make", "make") }
         if ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"].contains(where: { fm.fileExists(atPath: url.appendingPathComponent($0).path) }) {
             add("Docker Compose up", "docker compose up")
             add("Docker Compose down", "docker compose down")
         }
-        if fm.fileExists(atPath: url.appendingPathComponent("manage.py").path) { add("Django server", "python3 manage.py runserver") }
-        if fm.fileExists(atPath: url.appendingPathComponent("requirements.txt").path) { add("Python dependencies", "python3 -m pip install -r requirements.txt") }
-        if fm.fileExists(atPath: url.appendingPathComponent("pom.xml").path) {
-            add("Maven test", "mvn test")
-            add("Maven package", "mvn package")
-        }
-        if fm.fileExists(atPath: url.appendingPathComponent("gradlew").path) {
-            add("Gradle test", "./gradlew test")
-            add("Gradle run", "./gradlew run")
-        } else if fm.fileExists(atPath: url.appendingPathComponent("build.gradle").path) || fm.fileExists(atPath: url.appendingPathComponent("build.gradle.kts").path) {
-            add("Gradle test", "gradle test")
-            add("Gradle run", "gradle run")
-        }
         if fm.fileExists(atPath: url.appendingPathComponent("Gemfile").path) { add("Bundler install", "bundle install") }
-        if fm.fileExists(atPath: url.appendingPathComponent("artisan").path) { add("Laravel server", "php artisan serve") }
         if fm.fileExists(atPath: url.appendingPathComponent("mix.exs").path) {
             add("Mix test", "mix test")
             add("Phoenix server", "mix phx.server")
@@ -1824,7 +2001,7 @@ enum FileTreeLoader {
             if first.directory != second.directory { return first.directory }
             return first.url.lastPathComponent.localizedStandardCompare(second.url.lastPathComponent) == .orderedAscending
         }.map { entry in
-            FileItem(name: entry.url.lastPathComponent, icon: entry.directory ? "folder.fill" : icon(for: entry.url.pathExtension),
+            FileItem(name: entry.url.lastPathComponent, icon: entry.directory ? "folder.fill" : icon(for: entry.url.pathExtension, name: entry.url.lastPathComponent),
                      children: entry.directory && recursive ? load(url: entry.url, depth: depth + 1, recursive: true) : [], path: entry.url.path, isDirectory: entry.directory)
         }
     }
@@ -1864,14 +2041,101 @@ enum FileTreeLoader {
             let filePath = fileURL.standardizedFileURL.path
             let relativePath = filePath.hasPrefix(rootPath + "/") ? String(filePath.dropFirst(rootPath.count + 1)) : fileURL.lastPathComponent
             if name.lowercased().contains(normalizedQuery) || relativePath.lowercased().contains(normalizedQuery) {
-                results.append(FileItem(name: relativePath, icon: icon(for: fileURL.pathExtension), children: [], path: fileURL.path, isDirectory: false))
+                results.append(FileItem(name: relativePath, icon: icon(for: fileURL.pathExtension, name: fileURL.lastPathComponent), children: [], path: fileURL.path, isDirectory: false))
                 if results.count >= limit { break }
             }
         }
         return results.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    static func icon(for ext: String) -> String { switch ext.lowercased() { case "swift": "swift"; case "js", "ts", "vue", "jsx", "tsx": "curlybraces"; case "md": "doc.richtext"; case "json", "yaml", "yml": "doc.text"; default: "doc" } }
+    static func icon(for ext: String, name: String = "") -> String { FileTreeIcon.symbol(name: name, extension: ext) }
+}
+
+/// Small, semantic file icons for the navigator. SF Symbols keep the tree
+/// native and lightweight while the color palette gives common languages the
+/// same quick visual recognition as an IDE file tree.
+enum FileTreeIcon {
+    static func symbol(name: String, extension ext: String) -> String {
+        let filename = name.lowercased()
+        let suffix = ext.lowercased()
+        switch filename {
+        case "dockerfile", "containerfile": return "shippingbox"
+        case "makefile", "rakefile", "justfile": return "hammer"
+        case "package.swift": return "swift"
+        case "package.json", "tsconfig.json", "jsconfig.json": return "curlybraces.square"
+        case "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "cargo.toml", "go.mod": return "shippingbox"
+        case ".gitignore", ".gitattributes", ".gitmodules", ".editorconfig": return "gearshape"
+        case ".env", ".env.local", ".env.example": return "key"
+        case "license", "license.md", "copying": return "checkmark.seal"
+        case "readme", "readme.md", "changelog", "changelog.md": return "doc.richtext"
+        default: break
+        }
+        switch suffix {
+        case "swift": return "swift"
+        case "m", "mm": return "m.square"
+        case "c", "h": return "c.square"
+        case "cc", "cpp", "cxx", "hpp": return "curlybraces.square"
+        case "java": return "cup.and.saucer"
+        case "kt", "kts": return "k.square"
+        case "php": return "curlybraces.square"
+        case "js", "jsx": return "curlybraces"
+        case "ts", "tsx": return "curlybraces.square"
+        case "vue": return "v.square"
+        case "py", "pyw": return "p.square"
+        case "go": return "g.square"
+        case "rs": return "r.square"
+        case "rb": return "r.square"
+        case "dart": return "d.square"
+        case "html", "htm": return "globe"
+        case "css", "scss", "sass", "less": return "paintbrush"
+        case "json", "yaml", "yml", "toml", "xml": return "curlybraces.square"
+        case "sql", "sqlite", "db": return "cylinder.split.1x2"
+        case "sh", "bash", "zsh", "fish", "command": return "terminal"
+        case "md", "markdown", "mdx": return "doc.richtext"
+        case "txt", "log": return "doc.text"
+        case "csv", "tsv": return "tablecells"
+        case "svg", "png", "jpg", "jpeg", "gif", "webp", "ico": return "photo"
+        case "pdf": return "doc.richtext"
+        case "zip", "tar", "gz", "bz2", "xz", "7z", "rar": return "archivebox"
+        case "lock": return "lock"
+        case "graphql", "gql", "proto": return "network"
+        default: return "doc.text"
+        }
+    }
+
+    static func color(name: String, extension ext: String) -> NSColor {
+        let filename = name.lowercased()
+        let suffix = ext.lowercased()
+        switch filename {
+        case "dockerfile", "containerfile", "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "cargo.toml", "go.mod": return .systemBlue
+        case ".env", ".env.local", ".env.example": return .systemYellow
+        case ".gitignore", ".gitattributes", ".gitmodules", ".editorconfig": return .secondaryLabelColor
+        case "license", "license.md", "copying": return .systemGreen
+        default: break
+        }
+        switch suffix {
+        case "swift": return .systemOrange
+        case "php": return NSColor(calibratedRed: 0.46, green: 0.48, blue: 0.74, alpha: 1)
+        case "js", "jsx": return NSColor(calibratedRed: 0.86, green: 0.67, blue: 0.08, alpha: 1)
+        case "ts", "tsx": return NSColor(calibratedRed: 0.18, green: 0.45, blue: 0.78, alpha: 1)
+        case "vue": return NSColor(calibratedRed: 0.25, green: 0.72, blue: 0.51, alpha: 1)
+        case "py", "pyw": return NSColor(calibratedRed: 0.22, green: 0.45, blue: 0.65, alpha: 1)
+        case "go": return NSColor(calibratedRed: 0.0, green: 0.65, blue: 0.85, alpha: 1)
+        case "rs": return .systemOrange
+        case "html", "htm": return .systemOrange
+        case "css", "scss", "sass", "less": return .systemCyan
+        case "json", "yaml", "yml", "toml", "xml": return .systemYellow
+        case "sql", "sqlite", "db": return .systemPurple
+        case "sh", "bash", "zsh", "fish", "command": return .systemGreen
+        case "md", "markdown", "mdx": return .systemBlue
+        case "svg", "png", "jpg", "jpeg", "gif", "webp", "ico": return .systemPink
+        case "zip", "tar", "gz", "bz2", "xz", "7z", "rar": return .systemBrown
+        case "lock": return .systemGray
+        default: return .secondaryLabelColor
+        }
+    }
+
+    static func color(for file: FileItem) -> NSColor { color(name: file.name, extension: URL(fileURLWithPath: file.name).pathExtension) }
 }
 
 enum AppLanguage: String, CaseIterable, Identifiable {
@@ -2005,14 +2269,13 @@ final class SplitDividerView: NSView {
         addCursorRect(bounds, cursor: axis == .vertical ? .resizeLeftRight : .resizeUpDown)
     }
     override func draw(_ dirtyRect: NSRect) {
-        (hovering || window?.firstResponder === self ? NSColor.controlAccentColor.withAlphaComponent(0.10) : NSColor.clear).setFill()
-        bounds.fill()
-        guard hovering || window?.firstResponder === self else { return }
-        NSColor.controlAccentColor.withAlphaComponent(0.42).setFill()
-        let handle = axis == .vertical
-            ? NSRect(x: bounds.midX - 1, y: max(8, bounds.midY - 14), width: 2, height: 28)
-            : NSRect(x: max(8, bounds.midX - 14), y: bounds.midY - 1, width: 28, height: 2)
-        NSBezierPath(roundedRect: handle, xRadius: 1, yRadius: 1).fill()
+        if hovering {
+            let line = axis == .vertical
+                ? NSRect(x: bounds.midX - 0.5, y: 0, width: 1, height: bounds.height)
+                : NSRect(x: 0, y: bounds.midY - 0.5, width: bounds.width, height: 1)
+            NSColor.labelColor.withAlphaComponent(0.12).setFill()
+            line.fill()
+        }
     }
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)

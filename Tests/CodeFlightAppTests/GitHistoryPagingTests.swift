@@ -99,4 +99,119 @@ final class GitHistoryPagingTests: XCTestCase {
         XCTAssertEqual(before.output, after.output)
     }
 
+
+    @MainActor private func authorFixture() async throws -> URL {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".git-history-author-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let result = await CommandRunner.run(command: """
+            git init -q -b main
+            git config user.name "Alpha.Beta" && git config user.email alpha@example.com
+            for n in {1..3}; do git commit -qm "dot-$n" --allow-empty || exit 1; done
+            git config user.name "AlphaXBeta" && git config user.email alpha-x@example.com
+            for n in {1..60}; do git commit -qm "plain-$n" --allow-empty || exit 1; done
+            """, cwd: root.path)
+        XCTAssertEqual(result.status, 0, result.output)
+        return root
+    }
+
+    @MainActor func testAuthorFilterMatchesLiteralNamesAndPagesTheFilteredHistory() async throws {
+        let root = try await authorFixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let all = await GitService.historyPage(at: root.path)
+        XCTAssertEqual(all.commits.first?.subject, "plain-60")
+
+        // A dot in a name must be literal, not a regular-expression wildcard.
+        let filtered = await GitService.historyPage(at: root.path, author: "Alpha.Beta")
+        XCTAssertNil(filtered.error)
+        XCTAssertEqual(filtered.commits.map(\.subject).sorted(), ["dot-1", "dot-2", "dot-3"])
+        XCTAssertTrue(filtered.commits.allSatisfy { $0.author == "Alpha.Beta" })
+
+        let first = await GitService.historyPage(at: root.path, author: "AlphaXBeta")
+        XCTAssertNil(first.error)
+        XCTAssertEqual(first.commits.count, 50)
+        XCTAssertTrue(first.hasMore)
+        let second = await GitService.historyPage(at: root.path, skip: 50, expectedRevision: first.revision, author: "AlphaXBeta")
+        XCTAssertNil(second.error)
+        XCTAssertEqual(second.commits.count, 10)
+        XCTAssertFalse(second.hasMore)
+        XCTAssertEqual(Set((first.commits + second.commits).map(\.hash)).count, 60)
+
+        // A page loaded for one filter cannot be continued with another.
+        let mismatched = await GitService.historyPage(at: root.path, skip: 50, expectedRevision: first.revision, author: "Alpha.Beta")
+        XCTAssertTrue(mismatched.requiresRefresh)
+        XCTAssertTrue(mismatched.commits.isEmpty)
+
+        let authors = await GitService.authors(at: root.path)
+        XCTAssertEqual(authors, ["Alpha.Beta", "AlphaXBeta"])
+    }
+
+    @MainActor func testDateFilterBoundsAndEndDateInclusion() async throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".git-history-dates-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let result = await CommandRunner.run(command: """
+            git init -q -b main
+            git config user.name Test && git config user.email test@example.com
+            GIT_AUTHOR_DATE="2020-01-01T12:00:00+0800" GIT_COMMITTER_DATE="2020-01-01T12:00:00+0800" git commit -qm old --allow-empty || exit 1
+            GIT_AUTHOR_DATE="2020-06-01T12:00:00+0800" GIT_COMMITTER_DATE="2020-06-01T12:00:00+0800" git commit -qm middle --allow-empty || exit 1
+            GIT_AUTHOR_DATE="2021-01-01T12:00:00+0800" GIT_COMMITTER_DATE="2021-01-01T12:00:00+0800" git commit -qm new --allow-empty || exit 1
+            """, cwd: root.path)
+        XCTAssertEqual(result.status, 0, result.output)
+
+        let since = await GitService.historyPage(at: root.path, since: "2020-03-01")
+        XCTAssertNil(since.error)
+        XCTAssertEqual(since.commits.map(\.subject), ["new", "middle"])
+
+        let until = await GitService.historyPage(at: root.path, until: "2021-01-01")
+        XCTAssertNil(until.error)
+        XCTAssertEqual(until.commits.map(\.subject), ["middle", "old"])
+
+        let both = await GitService.historyPage(at: root.path, since: "2020-02-01", until: "2021-01-01")
+        XCTAssertNil(both.error)
+        XCTAssertEqual(both.commits.map(\.subject), ["middle"])
+
+        let empty = await GitService.historyPage(at: root.path, since: "2022-01-01")
+        XCTAssertNil(empty.error)
+        XCTAssertTrue(empty.commits.isEmpty)
+        XCTAssertFalse(empty.hasMore)
+    }
+
+    @MainActor func testInvalidFilterInputsAreRejected() async throws {
+        let root = try await fixture(count: 2); defer { try? FileManager.default.removeItem(at: root) }
+        let newlineAuthor = await GitService.historyPage(at: root.path, author: "a\nb")
+        XCTAssertNotNil(newlineAuthor.error); XCTAssertTrue(newlineAuthor.commits.isEmpty)
+        let longAuthor = await GitService.historyPage(at: root.path, author: String(repeating: "a", count: 201))
+        XCTAssertNotNil(longAuthor.error); XCTAssertTrue(longAuthor.commits.isEmpty)
+        for bad in ["2026-1-1", "2026/01/01", "abc", "2026-01-01\n", ""] {
+            let since = await GitService.historyPage(at: root.path, since: bad)
+            XCTAssertNotNil(since.error, bad); XCTAssertTrue(since.commits.isEmpty)
+            let until = await GitService.historyPage(at: root.path, until: bad)
+            XCTAssertNotNil(until.error, bad); XCTAssertTrue(until.commits.isEmpty)
+        }
+        let valid = await GitService.historyPage(at: root.path)
+        XCTAssertNil(valid.error); XCTAssertEqual(valid.commits.count, 2)
+    }
+
+    @MainActor func testStoreReloadsWhenTheFilterChangesAndDropsStaleSelection() async throws {
+        let root = try await authorFixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = GitHistoryStore()
+        await store.refresh(GitHistoryContext(path: root.path, scope: "HEAD"))
+        XCTAssertEqual(store.commits.first?.subject, "plain-60")
+        XCTAssertFalse(store.isFiltering)
+        store.selectedHash = store.commits.first?.hash
+
+        await store.refresh(GitHistoryContext(path: root.path, scope: "HEAD", author: "Alpha.Beta"))
+        XCTAssertTrue(store.isFiltering)
+        XCTAssertTrue(store.hasAuthorOrDateFilter)
+        XCTAssertEqual(store.commits.map(\.subject).sorted(), ["dot-1", "dot-2", "dot-3"])
+        XCTAssertNil(store.selectedHash)
+
+        await store.refresh(GitHistoryContext(path: root.path, scope: "HEAD", since: "2030-01-01"))
+        XCTAssertTrue(store.isFiltering)
+        XCTAssertTrue(store.commits.isEmpty)
+        XCTAssertTrue(store.reachedEnd)
+
+        await store.loadAuthors(for: root.path)
+        XCTAssertEqual(store.authors, ["Alpha.Beta", "AlphaXBeta"])
+    }
+
 }

@@ -4,22 +4,32 @@ import ImageIO
 
 /// Shared semantic surfaces; keep editor contrast separate from window chrome.
 enum WorkbenchChrome {
-    static let editor = Color(nsColor: .textBackgroundColor)
-    static let bar = Color(nsColor: .controlBackgroundColor)
+    static let editorColor = dynamicColor("editor", light: (1, 1, 1), dark: (0.105, 0.109, 0.118))
+    static let editor = Color(nsColor: editorColor)
+    static let canvasColor = dynamicColor("canvas", light: (0.900, 0.908, 0.922), dark: (0.082, 0.086, 0.096))
+    static let canvas = Color(nsColor: canvasColor)
+    static let bar = canvas
     // IDEA-style surfaces: use small tonal steps first, and reserve a line for
     // the few places where a resizable boundary needs a tactile affordance.
-    static let panel = Color(nsColor: dynamicColor("panel", light: (0.975, 0.976, 0.982), dark: (0.125, 0.13, 0.145)))
-    static let raised = Color(nsColor: dynamicColor("raised", light: (1.0, 1.0, 1.0), dark: (0.15, 0.155, 0.17)))
-    static let separator = Color(nsColor: .separatorColor).opacity(0.34)
-    static let quietSeparator = Color(nsColor: .separatorColor).opacity(0.16)
-    static let selectedSurface = Color(nsColor: .selectedContentBackgroundColor).opacity(0.22)
+    static let panel = Color(nsColor: dynamicColor("panel", light: (0.970, 0.974, 0.980), dark: (0.145, 0.150, 0.162)))
+    static let raised = Color(nsColor: dynamicColor("raised", light: (0.985, 0.988, 0.992), dark: (0.180, 0.185, 0.198)))
+    static let separator = Color.primary.opacity(0.12)
+    static let quietSeparator = Color.primary.opacity(0.06)
+    static let subtleDivider = Color.primary.opacity(0.06)
+    // Tone and canvas gaps establish the pane hierarchy. A faint single rim
+    // only finishes rounded edges, without turning the workspace into a grid.
+    static let paneBorder = Color.primary.opacity(0.09)
+    // Two pane insets plus the 5pt resize target make a compact 7pt gutter.
+    static let paneInset: CGFloat = 1
+    static let paneCornerRadius: CGFloat = 7
+    static let selectedSurface = Color.accentColor.opacity(0.12)
     static let selectedBorder = Color(nsColor: .controlAccentColor).opacity(0.30)
     static let rowHeight: CGFloat = 30
 
     private static func dynamicColor(_ name: String, light: (CGFloat, CGFloat, CGFloat), dark: (CGFloat, CGFloat, CGFloat)) -> NSColor {
         NSColor(name: NSColor.Name("CodeFlight.chrome." + name)) { appearance in
             let value = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
-            return NSColor(calibratedRed: value.0, green: value.1, blue: value.2, alpha: 1)
+            return NSColor(srgbRed: value.0, green: value.1, blue: value.2, alpha: 1)
         }
     }
 }
@@ -91,8 +101,18 @@ final class WorkbenchBackdrop: ObservableObject {
 /// Configure only the window hosting this workbench. Sheets and system panels
 /// retain AppKit's own titlebar behavior.
 struct WorkbenchWindowAnchor: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { WorkbenchTitlebarAnchor() }
-    func updateNSView(_ view: NSView, context: Context) {}
+    let theme: AppTheme
+
+    func makeNSView(context: Context) -> NSView {
+        let view = WorkbenchTitlebarAnchor()
+        view.theme = theme
+        return view
+    }
+    func updateNSView(_ view: NSView, context: Context) {
+        guard let anchor = view as? WorkbenchTitlebarAnchor else { return }
+        anchor.theme = theme
+        anchor.applyAppearance()
+    }
 }
 
 /// SwiftUI's content frame expresses a preferred layout size, but AppKit can
@@ -149,8 +169,27 @@ struct WorkbenchWindowMinimumSize: NSViewRepresentable {
 }
 
 private final class WorkbenchTitlebarAnchor: NSView {
+    var theme: AppTheme = .system
+
+    func applyAppearance() {
+        guard let window else { return }
+        // Keep native toolbar controls in step with SwiftUI. Nil retains live
+        // system appearance changes when the user chooses Follow System.
+        let appearance: NSAppearance?
+        switch theme {
+        case .system: appearance = nil
+        case .light: appearance = NSAppearance(named: .aqua)
+        case .dark: appearance = NSAppearance(named: .darkAqua)
+        }
+        if NSApp.appearance?.name != appearance?.name { NSApp.appearance = appearance }
+        if window.appearance?.name != appearance?.name { window.appearance = appearance }
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.titleVisibility = .hidden
+        window?.titlebarAppearsTransparent = true
+        window?.backgroundColor = WorkbenchChrome.canvasColor
+        applyAppearance()
     }
 }

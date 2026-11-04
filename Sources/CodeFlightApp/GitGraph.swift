@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct GitGraphRow {
-    struct Edge { let from: Int; let to: Int; let lane: Int }
+struct GitGraphRow: Sendable {
+    struct Edge: Sendable { let from: Int; let to: Int; let lane: Int }
     let lane: Int
     let hasIncoming: Bool
     let through: [Edge]
@@ -13,6 +13,7 @@ enum GitGraphLayout {
     static func rows(_ commits: [GitCommit]) -> [String: GitGraphRow] {
         var lanes: [String] = []
         var result: [String: GitGraphRow] = [:]
+        result.reserveCapacity(commits.count)
         for commit in commits {
             let existing = lanes.firstIndex(of: commit.hash)
             let lane = existing ?? lanes.count

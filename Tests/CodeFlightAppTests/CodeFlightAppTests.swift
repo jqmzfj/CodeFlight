@@ -1484,6 +1484,53 @@ final class CodeFlightAppTests: XCTestCase {
         XCTAssertTrue(commands.contains("php artisan serve"))
     }
 
+    func testProjectCommandDetectorFindsSpringBootAndMultiLanguageCommands() throws {
+        let directory = workspaceRoot.appendingPathComponent(".git-workbench-detector-stack-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        // Spring Boot Maven
+        let springBootPom = "<project><dependencies><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency></dependencies></project>"
+        try springBootPom.data(using: .utf8)?.write(to: directory.appendingPathComponent("pom.xml"))
+
+        // Go module
+        try "module example.com/app\ngo 1.21\n".data(using: .utf8)?.write(to: directory.appendingPathComponent("go.mod"))
+
+        // ThinkPHP
+        try "think CLI".data(using: .utf8)?.write(to: directory.appendingPathComponent("think"))
+
+        // Python FastAPI
+        let fastAPIMain = "from fastapi import FastAPI\napp = FastAPI()\n"
+        try fastAPIMain.data(using: .utf8)?.write(to: directory.appendingPathComponent("main.py"))
+
+        // Frontend package.json
+        let pkgJson = "{\"scripts\": {\"lint\": \"eslint .\", \"dev\": \"vite\", \"build\": \"vite build\"}}"
+        try pkgJson.data(using: .utf8)?.write(to: directory.appendingPathComponent("package.json"))
+
+        let configs = ProjectCommandDetector.detect(at: directory)
+        let commands = configs.map(\.command)
+        let names = configs.map(\.name)
+
+        // Spring Boot run
+        XCTAssertTrue(commands.contains("mvn spring-boot:run"))
+        XCTAssertTrue(names.contains("Spring Boot"))
+
+        // Go commands
+        XCTAssertTrue(commands.contains("go run ."))
+        XCTAssertTrue(commands.contains("go test -v ./..."))
+        XCTAssertTrue(commands.contains("go build -v ."))
+
+        // ThinkPHP
+        XCTAssertTrue(commands.contains("php think run"))
+
+        // Python FastAPI
+        XCTAssertTrue(commands.contains("python3 -m uvicorn main:app --reload"))
+
+        // Package.json prioritizing "dev" before "build" and "lint"
+        let npmCommands = configs.filter { $0.command.contains("npm run") }.map(\.command)
+        XCTAssertEqual(npmCommands.first, "npm run 'dev'")
+    }
+
     func testFileTreeLoadsOneDirectoryLevelAtATime() throws {
         let root = workspaceRoot.appendingPathComponent(".git-workbench-tree-\(UUID().uuidString)")
         let nested = root.appendingPathComponent("src")

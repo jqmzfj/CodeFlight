@@ -90,14 +90,14 @@ struct WorkbenchView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                 statusBar
             }
         }
-        .background(WorkbenchWindowAnchor().frame(width: 0, height: 0))
+        .background(WorkbenchWindowAnchor(theme: model.theme).frame(width: 0, height: 0))
         .toolbarRole(.editor)
         .toolbar { workbenchToolbar }
         .task(id: model.background) { await backdrop.load(backgroundURL) }
-        .preferredColorScheme(model.theme.colorScheme)
         .onChange(of: model.fileNavigatorFocusRequest) { _ in topPanel = .files; sidebarVisible = true }
         .onChange(of: model.gitNavigatorFocusRequest) { _ in topPanel = .git; sidebarVisible = true }
         .onChange(of: model.fileSearchFocusRequest) { _ in
@@ -190,7 +190,7 @@ struct WorkbenchView: View {
     private var backgroundView: some View {
         Group {
             switch model.background {
-            case .plain: Color(nsColor: .windowBackgroundColor)
+            case .plain: WorkbenchChrome.canvas
             case .aurora:
                 LinearGradient(colors: colorScheme == .dark ? [Color(red: 0.035, green: 0.045, blue: 0.07), Color(red: 0.09, green: 0.07, blue: 0.14)] : [Color.white, Color(red: 0.92, green: 0.95, blue: 1)], startPoint: .topLeading, endPoint: .bottomTrailing)
             case .image:
@@ -201,7 +201,7 @@ struct WorkbenchView: View {
                             .overlay(Color(nsColor: .windowBackgroundColor).opacity(colorScheme == .dark ? 0.62 : 0.76))
                             .accessibilityHidden(true)
                     }
-                } else { Color(nsColor: .windowBackgroundColor) }
+                } else { WorkbenchChrome.canvas }
             }
         }.ignoresSafeArea()
     }
@@ -217,7 +217,7 @@ struct WorkbenchView: View {
                 Image(systemName: "folder").foregroundStyle(.secondary).accessibilityHidden(true)
                 Text(model.selectedProject?.name ?? "CodeFlight").font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle).frame(maxWidth: 180).help(model.selectedProject?.path ?? "CodeFlight")
                 if model.selectedProjectID != nil {
-                    Divider().frame(height: 14)
+                    Spacer().frame(width: 3)
                     branchControl
                 }
                 if model.isGitBusy { ProgressView().controlSize(.mini) }
@@ -232,27 +232,32 @@ struct WorkbenchView: View {
 
     private var branchControl: some View {
             Button { showBranches.toggle() } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     Image(systemName: "arrow.triangle.branch")
-                    Text(model.gitBranch.isEmpty ? (model.isGitRepository ? "HEAD" : Copy.t("未初始化 Git", "Git not initialized", language: model.language)) : model.gitBranch).lineLimit(1).truncationMode(.middle).frame(maxWidth: 200)
+                        .font(.system(size: 11, weight: .semibold))
+                    Text(model.gitBranch.isEmpty ? (model.isGitRepository ? "HEAD" : Copy.t("未初始化 Git", "Git not initialized", language: model.language)) : model.gitBranch)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1).truncationMode(.middle).frame(maxWidth: 180)
                     if let tracking = model.gitTracking {
                         if tracking.gone {
                             Text("!").font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundStyle(.orange)
                                 .help(Copy.t("上游分支已失效", "Upstream branch is gone", language: model.language))
                         } else {
                             if let ahead = tracking.ahead, ahead > 0 {
-                                Text("↑\(ahead)").font(.system(size: 9, weight: .semibold, design: .monospaced)).foregroundStyle(Color.accentColor)
+                                Text("↑\(ahead)").font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(Color.accentColor)
                                     .help(Copy.t("领先 \(ahead) 个提交，可推送", "Ahead by \(ahead) commits; ready to push", language: model.language))
                             }
                             if let behind = tracking.behind, behind > 0 {
-                                Text("↓\(behind)").font(.system(size: 9, weight: .semibold, design: .monospaced)).foregroundStyle(.orange)
+                                Text("↓\(behind)").font(.system(size: 9, weight: .bold, design: .monospaced)).foregroundStyle(.orange)
                                     .help(Copy.t("落后 \(behind) 个提交，可拉取", "Behind by \(behind) commits; ready to pull", language: model.language))
                             }
                         }
                     }
-                    Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
-                }.font(.system(size: 12, weight: .medium)).padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(Color.clear)
+                    Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8).padding(.vertical, 3.5)
+                .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.primary.opacity(0.09), lineWidth: 0.5))
             }.buttonStyle(.plain).accessibilityLabel(Copy.t("切换与管理分支", "Switch and manage branches", language: model.language))
                 .accessibilityValue(model.gitBranch)
                 .help(model.gitBranch.isEmpty ? Copy.t("切换与管理分支", "Switch and manage branches", language: model.language) : model.gitBranch)
@@ -283,10 +288,13 @@ struct WorkbenchView: View {
 
     private var runConfigurationMenu: some View {
             Menu {
-                if let configurations = model.selectedProject?.runConfigurations {
+                if let configurations = model.selectedProject?.runConfigurations, !configurations.isEmpty {
                     ForEach(configurations) { config in Button { model.selectRunConfiguration(config) } label: { if config.id == model.selectedRunConfigurationID { Label(config.name, systemImage: "checkmark") } else { Text(config.name) } } }
+                    Divider()
                 }
-                Divider()
+                Button(Copy.t("重新自动检测配置", "Detect run configurations", language: model.language)) {
+                    model.redetectRunConfigurations()
+                }
                 Button(Copy.t("编辑运行配置…", "Edit configurations…", language: model.language)) { model.showRunSettings = true }
             } label: { Text(model.selectedRunConfiguration?.name ?? Copy.t("运行配置", "Run configuration", language: model.language)).lineLimit(1).frame(maxWidth: 130) }.menuStyle(.borderlessButton).fixedSize().disabled(model.selectedProjectID == nil)
     }
@@ -309,7 +317,7 @@ struct WorkbenchView: View {
                     if let id { proxy.scrollTo(id, anchor: .center) }
                 }
             }
-            Rectangle().fill(WorkbenchChrome.quietSeparator).frame(width: 1).padding(.vertical, 7)
+            Spacer().frame(width: 5)
             Button { model.addProject() } label: { Image(systemName: "plus").frame(width: 34, height: 30) }.buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel(Copy.t("添加项目", "Add project", language: model.language)).help(Copy.t("添加项目", "Add project", language: model.language))
                 .contextMenu {
                     Button(Copy.t("打开本地项目…", "Open local project…", language: model.language)) { model.addProject() }
@@ -322,24 +330,24 @@ struct WorkbenchView: View {
 
     private var toolRail: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                Button { if topPanel == .files { sidebarVisible.toggle() } else { topPanel = .files; sidebarVisible = true } } label: { Image(systemName: "folder") }.buttonStyle(RailButtonStyle(active: topPanel == .files && sidebarVisible)).accessibilityLabel(Copy.t("项目文件 ⌘1", "Project ⌘1", language: model.language)).help(Copy.t("项目文件 ⌘1", "Project ⌘1", language: model.language))
-                Button { if topPanel == .git { sidebarVisible.toggle() } else { topPanel = .git; sidebarVisible = true } } label: { Image(systemName: "arrow.triangle.branch") }.buttonStyle(RailButtonStyle(active: topPanel == .git && sidebarVisible)).accessibilityLabel(Copy.t("提交 ⌘0", "Commit ⌘0", language: model.language)).help(Copy.t("提交 ⌘0", "Commit ⌘0", language: model.language)).keyboardShortcut("0", modifiers: .command)
+            VStack(spacing: 4) {
+                Button { if topPanel == .files { sidebarVisible.toggle() } else { topPanel = .files; sidebarVisible = true } } label: { WorkbenchRailIcon(kind: .files) }.buttonStyle(RailButtonStyle(active: topPanel == .files && sidebarVisible)).accessibilityLabel(Copy.t("项目文件 ⌘1", "Project ⌘1", language: model.language)).help(Copy.t("项目文件 ⌘1", "Project ⌘1", language: model.language))
+                Button { if topPanel == .git { sidebarVisible.toggle() } else { topPanel = .git; sidebarVisible = true } } label: { WorkbenchRailIcon(kind: .commit) }.buttonStyle(RailButtonStyle(active: topPanel == .git && sidebarVisible)).accessibilityLabel(Copy.t("提交 ⌘0", "Commit ⌘0", language: model.language)).help(Copy.t("提交 ⌘0", "Commit ⌘0", language: model.language)).keyboardShortcut("0", modifiers: .command)
             }
-            Rectangle().fill(WorkbenchChrome.quietSeparator).frame(width: 20, height: 1).padding(.vertical, 6)
-            VStack(spacing: 0) {
+            Spacer(minLength: 16)
+            VStack(spacing: 4) {
                 ForEach(BottomTool.allCases) { tool in
                     if tool == .console {
-                        Button { selectBottomTool(tool) } label: { Image(systemName: tool.icon) }
+                        Button { selectBottomTool(tool) } label: { WorkbenchRailIcon(kind: .init(tool)) }
                             .buttonStyle(RailButtonStyle(active: bottomTool == tool && bottomToolExpanded))
                             .accessibilityLabel(Copy.t("终端 ⌘2", "Terminal ⌘2", language: model.language)).help(Copy.t("终端 ⌘2", "Terminal ⌘2", language: model.language))
                             .disabled(model.selectedProjectID == nil)
                     } else {
-                        Button { selectBottomTool(tool) } label: { Image(systemName: tool.icon) }.buttonStyle(RailButtonStyle(active: bottomTool == tool && bottomToolExpanded)).accessibilityLabel(bottomToolName(tool)).help(bottomToolName(tool)).disabled(model.selectedProjectID == nil)
+                        Button { selectBottomTool(tool) } label: { WorkbenchRailIcon(kind: .init(tool)) }.buttonStyle(RailButtonStyle(active: bottomTool == tool && bottomToolExpanded)).accessibilityLabel(bottomToolName(tool)).help(bottomToolName(tool)).disabled(model.selectedProjectID == nil)
                     }
                 }
             }
-            Spacer(minLength: 0)
+            Spacer().frame(height: 12)
             Button { model.showSettings = true } label: { Image(systemName: "gearshape") }
                 .buttonStyle(.plain)
                 .foregroundStyle(.tertiary)
@@ -422,10 +430,13 @@ struct WorkbenchView: View {
 
     private func floatingPane<Content: View>(_ content: Content) -> some View {
         content
-            .background(WorkbenchChrome.panel, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.07), lineWidth: 0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .padding(7)
+            .background(WorkbenchChrome.panel, in: RoundedRectangle(cornerRadius: WorkbenchChrome.paneCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: WorkbenchChrome.paneCornerRadius, style: .continuous)
+                    .strokeBorder(WorkbenchChrome.paneBorder, lineWidth: 0.5)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: WorkbenchChrome.paneCornerRadius, style: .continuous))
+            .padding(WorkbenchChrome.paneInset)
     }
 
     @ViewBuilder private var topSidebar: some View {
@@ -476,53 +487,23 @@ struct WorkbenchView: View {
 
     @ViewBuilder private var bottomToolWindow: some View {
         if bottomToolExpanded {
-            if bottomTool == .console {
-                TerminalTool(model: model, terminals: model.terminals, onHide: { withAnimation(.easeInOut(duration: 0.18)) { bottomToolExpanded = false } })
-            } else {
-                VStack(spacing: 0) {
-                    HStack(spacing: 12) {
-                        if bottomTool == .gitTree {
-                            Text("Git").font(.system(size: 11, weight: .semibold))
-                            HStack(spacing: 2) {
-                                WorkbenchToolTab(title: Copy.t("日志", "Log", language: model.language), selected: !showGitOperations) { showGitOperations = false }
-                                WorkbenchToolTab(title: Copy.t("控制台", "Console", language: model.language), selected: showGitOperations) { showGitOperations = true }
-                            }.padding(2).background(WorkbenchChrome.panel, in: RoundedRectangle(cornerRadius: 6))
-                        } else {
-                            Text(bottomToolName(bottomTool)).font(.system(size: 11, weight: .semibold))
-                        }
-                        Spacer()
-                        Menu {
-                            switch bottomTool {
-                            case .services:
-                                Button(Copy.t("刷新服务与 Docker", "Refresh services & Docker", language: model.language)) { model.refreshEnvironment(); model.refreshDocker() }
-                            case .gitTree:
-                                Button(Copy.t("刷新 Git 历史", "Refresh Git history", language: model.language)) { gitHistoryRevision = UUID() }
-                                if showGitOperations { Button(Copy.t("清空记录", "Clear History", language: model.language)) { model.clearGitConsole() } }
-                            case .processes:
-                                Button(Copy.t("运行配置…", "Run configurations…", language: model.language)) { model.showRunSettings = true }
-                            case .console: EmptyView()
-                            }
-                        } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).foregroundStyle(.secondary).fixedSize()
-                        Button { withAnimation(.easeInOut(duration: 0.18)) { bottomToolExpanded = false } } label: { Image(systemName: "xmark") }.buttonStyle(.plain).foregroundStyle(.secondary)
-                            .accessibilityLabel(Copy.t("隐藏工具窗口", "Hide tool window", language: model.language)).help(Copy.t("隐藏工具窗口", "Hide tool window", language: model.language))
-                    }.padding(.horizontal, 12).frame(height: WorkbenchChrome.rowHeight).background(WorkbenchChrome.bar)
-                    Group {
-                        switch bottomTool {
-                        case .processes: ProcessTool(model: model)
-                        case .services: ServicesTool(model: model)
-                        case .gitTree:
-                            if showGitOperations { ConsoleTool(model: model) }
-                            else { GitHistoryPanel(model: model, externalRefresh: gitHistoryRevision) }
-                        case .console: EmptyView()
-                        }
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).background(WorkbenchChrome.editor)
+            VStack(spacing: 0) {
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
+                Group {
+                    switch bottomTool {
+                    case .console:
+                        TerminalTool(model: model, terminals: model.terminals, onHide: { withAnimation(.easeInOut(duration: 0.18)) { bottomToolExpanded = false } })
+                    case .processes:
+                        ProcessTool(model: model, onHide: { withAnimation(.easeInOut(duration: 0.18)) { bottomToolExpanded = false } })
+                    case .services:
+                        ServicesTool(model: model, onHide: { withAnimation(.easeInOut(duration: 0.18)) { bottomToolExpanded = false } })
+                    case .gitTree:
+                        GitHistoryPanel(model: model, externalRefresh: gitHistoryRevision, showConsole: $showGitOperations, onHide: { withAnimation(.easeInOut(duration: 0.18)) { bottomToolExpanded = false } })
+                    }
                 }
-                .background(WorkbenchChrome.panel, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.07), lineWidth: 0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .padding(7)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .background(WorkbenchChrome.panel)
             }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         } else { Color.clear.frame(height: 0).transition(.opacity) }
     }
 
@@ -530,7 +511,7 @@ struct WorkbenchView: View {
         VStack(spacing: 0) {
             editorTabs
             if model.selectedProjectID == nil { EmptyWorkspaceView(model: model) } else if let document = model.conflictDocument { GitConflictEditor(model: model, document: document).id(document.id) } else if model.diffContent.isEmpty { CodePreview(file: model.selectedFile, content: model.fileContent, search: editorSearch, appLanguage: model.language, fontSize: model.editorFontSize, document: model.filePreviewDocument, navigation: editorNavigation, onPrepared: { previewSnapshot = $0 }) } else { GitDiffWorkspace(model: model) }
-        }.frame(maxWidth: .infinity).background(Color(nsColor: .textBackgroundColor))
+        }.frame(maxWidth: .infinity).background(WorkbenchChrome.editor)
     }
 
     private var editorTabs: some View {
@@ -551,7 +532,7 @@ struct WorkbenchView: View {
                         .help(Copy.t("关闭文件", "Close file", language: model.language))
                 }
             }.padding(.horizontal, 12).frame(height: WorkbenchChrome.rowHeight)
-                .background(WorkbenchChrome.editor)
+                .background(WorkbenchChrome.raised)
                 .contextMenu {
                     if !model.selectedFile.isEmpty {
                         Button(Copy.t("复制完整路径", "Copy Full Path", language: model.language)) {
@@ -605,7 +586,7 @@ struct WorkbenchView: View {
                     .disabled(!canSearchPreview)
         }
         .frame(height: WorkbenchChrome.rowHeight)
-        .background(WorkbenchChrome.bar)
+        .background(WorkbenchChrome.raised)
     }
 
     private func navigateSearch(_ direction: FileSearchNavigation.Direction) {
@@ -639,7 +620,7 @@ struct WorkbenchView: View {
     }
 
     private var statusBar: some View {
-        HStack { Text(model.selectedFile.isEmpty ? "" : "UTF-8"); Text(fileLanguageLabel); if !model.gitLastResult.isEmpty { Text(model.gitLastResult).lineLimit(1).truncationMode(.tail).frame(maxWidth: 360, alignment: .leading).help(model.selectedGitConsoleEntry?.output ?? "") }; Spacer(); if !model.selectedFile.isEmpty { Text(model.diffContent.isEmpty ? (searchableDocument != nil || model.filePreviewDocument?.kind == .empty ? Copy.t("\(fileLineCount) 行", "\(fileLineCount) lines", language: model.language) : "—") : Copy.t("差异", "Diff", language: model.language)) }; Text(Copy.t("⌘K  命令面板", "⌘K  Command palette", language: model.language)); Text(Copy.t("⌘R  运行", "⌘R  Run", language: model.language)) }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.vertical, 6).background(Color(nsColor: .controlBackgroundColor))
+        HStack { Text(model.selectedFile.isEmpty ? "" : "UTF-8"); Text(fileLanguageLabel); if !model.gitLastResult.isEmpty { Text(model.gitLastResult).lineLimit(1).truncationMode(.tail).frame(maxWidth: 360, alignment: .leading).help(model.selectedGitConsoleEntry?.output ?? "") }; Spacer(); if !model.selectedFile.isEmpty { Text(model.diffContent.isEmpty ? (searchableDocument != nil || model.filePreviewDocument?.kind == .empty ? Copy.t("\(fileLineCount) 行", "\(fileLineCount) lines", language: model.language) : "—") : Copy.t("差异", "Diff", language: model.language)) }; Text(Copy.t("⌘K  命令面板", "⌘K  Command palette", language: model.language)); Text(Copy.t("⌘R  运行", "⌘R  Run", language: model.language)) }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 12).padding(.vertical, 6).background(WorkbenchChrome.canvas)
     }
 
     private var fileLanguageLabel: String {
@@ -693,8 +674,8 @@ struct ProjectTab: View {
                 .accessibilityLabel(Copy.t("关闭项目 ", "Close project ", language: language) + project.name)
             Spacer().frame(width: 4)
         }.fixedSize(horizontal: true, vertical: false)
-        .background(active ? WorkbenchChrome.selectedSurface : (hovering ? Color.primary.opacity(0.035) : .clear))
-        .overlay(alignment: .bottom) { if active { Rectangle().fill(Color.accentColor.opacity(0.65)).frame(height: 2) } }
+        .background(active ? WorkbenchChrome.selectedSurface : (hovering ? Color.primary.opacity(0.035) : .clear),
+                    in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .contentShape(Rectangle())
         .help(project.path)
         .contextMenu {
@@ -708,7 +689,7 @@ struct ProjectTab: View {
     }
 }
 
-private struct WorkbenchToolTab: View {
+struct WorkbenchToolTab: View {
     let title: String
     let selected: Bool
     let action: () -> Void
@@ -720,39 +701,37 @@ private struct WorkbenchToolTab: View {
         }.buttonStyle(.plain)
             .foregroundStyle(selected ? .primary : .secondary)
             .background(selected ? WorkbenchChrome.selectedSurface : .clear, in: RoundedRectangle(cornerRadius: 5))
+            .overlay {
+                if selected {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .stroke(WorkbenchChrome.selectedBorder.opacity(0.7), lineWidth: 0.5)
+                }
+            }
             .contentShape(RoundedRectangle(cornerRadius: 5))
     }
 }
 
 struct RailButtonStyle: ButtonStyle {
     let active: Bool
+    @Environment(\.isEnabled) private var isEnabled
     @State private var hovering = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .medium))
-            .frame(width: 28, height: 28)
-            .contentShape(RoundedRectangle(cornerRadius: 7))
-            .foregroundStyle(active ? Color.accentColor : .secondary)
-            .background(
-                active ? WorkbenchChrome.selectedSurface : hovering ? Color.primary.opacity(0.06) : .clear,
-                in: RoundedRectangle(cornerRadius: 7)
-            )
+            .frame(width: 32, height: 32)
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .foregroundStyle(active ? Color.accentColor : Color.primary.opacity(hovering ? 0.9 : 0.6))
+            .background(active ? Color.accentColor.opacity(0.12) : hovering ? Color.primary.opacity(0.065) : .clear,
+                        in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .overlay {
                 if active {
-                    RoundedRectangle(cornerRadius: 7)
-                        .stroke(WorkbenchChrome.selectedBorder, lineWidth: 0.5)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(Color.accentColor.opacity(0.24), lineWidth: 0.5)
                 }
             }
-            .overlay(alignment: .leading) {
-                if active {
-                    Capsule().fill(Color.accentColor).frame(width: 2, height: 16)
-                        .offset(x: -5)
-                }
-            }
-            .opacity(configuration.isPressed ? 0.65 : 1)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.6 : 1) : 0.35)
             .onHover { hovering = $0 }
-            .animation(.easeOut(duration: 0.12), value: hovering)
+            .animation(.easeOut(duration: 0.14), value: hovering)
+            .animation(.easeOut(duration: 0.14), value: active)
     }
 }
-

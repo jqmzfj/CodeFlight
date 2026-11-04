@@ -282,7 +282,7 @@ struct CodePreview: View {
             } else { loading }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(WorkbenchChrome.editor)
         .task(id: PreviewPreparationRequest(file: file, source: content, fontSize: fontSize)) {
             guard !content.isEmpty else { prepared = nil; preparedSource = nil; return }
             let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
@@ -345,11 +345,11 @@ struct NativeTextSurface: NSViewRepresentable {
         // TextKit's estimated positions alone can leave distant lines blank.
         view.layoutManager?.allowsNonContiguousLayout = true
         view.layoutManager?.backgroundLayoutEnabled = false
-        view.backgroundColor = .textBackgroundColor
+        view.backgroundColor = WorkbenchChrome.editorColor
         view.setAccessibilityLabel("Code preview")
         scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true
         scroll.autohidesScrollers = true; scroll.drawsBackground = true
-        scroll.backgroundColor = .textBackgroundColor
+        scroll.backgroundColor = WorkbenchChrome.editorColor
         scroll.borderType = .noBorder
         scroll.documentView = view
         scroll.contentView.postsBoundsChangedNotifications = true
@@ -734,7 +734,7 @@ final class CodeLineGutter: NSView {
         guard let scrollView else { return }
         // A partially visible first row must not paint over the toolbar.
         NSBezierPath(rect: bounds).addClip()
-        NSColor.textBackgroundColor.setFill(); bounds.fill()
+        WorkbenchChrome.editorColor.setFill(); bounds.fill()
         let offset = scrollView.contentView.bounds.minY
         let first = max(0, Int((offset - 12) / lineHeight))
         let last = min(lineCount, first + Int(ceil(bounds.height / lineHeight)) + 2)

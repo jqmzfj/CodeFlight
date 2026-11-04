@@ -42,18 +42,35 @@ enum DockerService {
 
 struct ServicesTool: View {
     @ObservedObject var model: WorkbenchModel
+    var onHide: (() -> Void)? = nil
     @State private var showsEnvironment = false
     private func text(_ zh: String, _ en: String) -> String { Copy.t(zh, en, language: model.language) }
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Picker("", selection: $showsEnvironment) { Text("Docker").tag(false); Text(text("开发环境", "Environment")).tag(true) }.pickerStyle(.segmented).frame(width: 220)
+                Picker("", selection: $showsEnvironment) {
+                    Text("Docker").tag(false)
+                    Text(text("开发环境", "Environment")).tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 180)
+
                 if showsEnvironment ? model.isEnvironmentLoading : model.isDockerLoading { ProgressView().controlSize(.small) }
                 Spacer()
                 if !showsEnvironment, let notice = model.dockerNotice { Text(notice).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
                 Button { if showsEnvironment { model.refreshEnvironment() } else { model.refreshDocker() } } label: { Label(text("刷新", "Refresh"), systemImage: "arrow.clockwise") }
                     .buttonStyle(.borderless).font(.system(size: 11)).disabled(showsEnvironment ? model.isEnvironmentLoading : model.isDockerLoading || model.dockerBusyContainer != nil)
-            }.padding(.horizontal, 12).padding(.vertical, 7)
+                if let onHide {
+                    Button(action: onHide) {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(text("隐藏工具窗口", "Hide tool window"))
+                    .help(text("隐藏工具窗口", "Hide tool window"))
+                }
+            }.padding(.horizontal, 10).frame(height: WorkbenchChrome.rowHeight)
                 .background(WorkbenchChrome.raised)
             Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
             ScrollView {

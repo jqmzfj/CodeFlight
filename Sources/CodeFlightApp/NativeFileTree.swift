@@ -88,6 +88,8 @@ struct NativeFileTree: NSViewRepresentable {
         outline.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
         outline.dataSource = context.coordinator
         outline.delegate = context.coordinator
+        outline.target = context.coordinator
+        outline.doubleAction = #selector(Coordinator.doubleClick(_:))
         outline.setAccessibilityLabel(Copy.t("项目文件", "Project files", language: model.language))
         outline.makeMenu = { [weak coordinator = context.coordinator] row in coordinator?.menu(row: row) }
         outline.openSelection = { [weak coordinator = context.coordinator] in coordinator?.openSelection() }
@@ -248,13 +250,14 @@ struct NativeFileTree: NSViewRepresentable {
             // retaining any extra tree data.
             cell.textField?.textColor = entry.isLimitNotice ? .secondaryLabelColor : statusColor(for: entry.file)
             cell.imageView?.image = NSImage(systemSymbolName: loading ? "arrow.triangle.2.circlepath" : (entry.file.isDirectory ? "folder" : entry.file.icon), accessibilityDescription: nil)
-            cell.imageView?.contentTintColor = loading ? .secondaryLabelColor : (entry.isLimitNotice ? .secondaryLabelColor : statusColor(for: entry.file))
+            let gitColor = statusColor(for: entry.file)
+            cell.imageView?.contentTintColor = loading ? .secondaryLabelColor : (entry.isLimitNotice ? .secondaryLabelColor : (gitColor ?? (entry.file.isDirectory ? .systemBlue : FileTreeIcon.color(for: entry.file))))
             cell.toolTip = loading ? text("正在读取目录…", "Reading directory…") : (entry.isLimitNotice ? name : entry.file.path)
             cell.setAccessibilityLabel(name)
             cell.setAccessibilityValue(loading ? text("正在读取", "Loading") : "")
         }
-        private func statusColor(for file: FileItem) -> NSColor {
-            guard let project = parent.model.selectedProject else { return .labelColor }
+        private func statusColor(for file: FileItem) -> NSColor? {
+            guard let project = parent.model.selectedProject else { return nil }
             let root = URL(fileURLWithPath: project.path).standardizedFileURL.path
             let path = URL(fileURLWithPath: file.path).standardizedFileURL.path
             let relative = path.hasPrefix(root + "/") ? String(path.dropFirst(root.count + 1)) : path
@@ -271,7 +274,7 @@ struct NativeFileTree: NSViewRepresentable {
                 hasUnstaged = hasUnstaged || change.isUnstaged
                 hasStaged = hasStaged || change.isStaged
             }
-            guard hasMatch else { return .labelColor }
+            guard hasMatch else { return nil }
             if hasUnstaged { return .systemOrange }
             if hasStaged { return .systemBlue }
             return .systemGreen
@@ -295,6 +298,20 @@ struct NativeFileTree: NSViewRepresentable {
         func outlineViewSelectionDidChange(_ notification: Notification) {
             guard !updating else { return }
             openSelection()
+        }
+        @objc func doubleClick(_ sender: Any?) {
+            guard let outline,
+                  let entry = outline.item(atRow: outline.selectedRow) as? FileTreeEntry,
+                  !entry.isLimitNotice else { return }
+            if entry.file.isDirectory {
+                if outline.isItemExpanded(entry) {
+                    outline.collapseItem(entry)
+                } else {
+                    outline.expandItem(entry)
+                }
+            } else {
+                openSelection()
+            }
         }
         func openSelection() {
             guard let outline, let entry = outline.item(atRow: outline.selectedRow) as? FileTreeEntry, !entry.isLimitNotice else { return }

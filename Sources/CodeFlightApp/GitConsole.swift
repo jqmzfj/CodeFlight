@@ -154,38 +154,78 @@ struct ConsoleTool: View {
 
     var body: some View {
         WorkbenchSplit("console.operations", initial: 220, minimum: 180, otherMinimum: 300) {
-            List(selection: Binding(get: { model.selectedGitConsoleEntry?.id }, set: { if let id = $0 { model.selectGitConsoleEntry(id) } })) {
-                ForEach(entries.reversed()) { entry in
-                    HStack(spacing: 7) {
-                        if entry.isRunning { ProgressView().controlSize(.mini) }
-                        else { Image(systemName: entry.status == 0 ? "checkmark.circle" : "exclamationmark.circle").foregroundStyle(entry.status == 0 ? Color.green : .orange) }
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(entry.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
-                            HStack(spacing: 5) { Text(entry.startedAt, style: .time); Text(entry.summary(model.language)) }
-                                .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+            VStack(spacing: 0) {
+                HStack(spacing: 6) {
+                    Text(text("操作记录", "Operations"))
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if !entries.isEmpty {
+                        Button {
+                            model.clearGitConsole()
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 10))
                         }
-                    }.tag(entry.id)
-                    .contextMenu { Button(text("删除记录", "Remove entry")) { model.removeGitConsoleEntry(entry.id) }.disabled(entry.isRunning) }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help(text("清空全部记录", "Clear all"))
+                    }
                 }
-                if entries.isEmpty { Text(text("暂无操作记录", "No operation history")).font(.caption).foregroundStyle(.secondary) }
-            }.listStyle(.sidebar).scrollContentBackground(.hidden)
+                .padding(.horizontal, 10)
+                .frame(height: WorkbenchChrome.rowHeight)
+                .background(WorkbenchChrome.panel)
+
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
+
+                List(selection: Binding(get: { model.selectedGitConsoleEntry?.id }, set: { if let id = $0 { model.selectGitConsoleEntry(id) } })) {
+                    ForEach(entries.reversed()) { entry in
+                        HStack(spacing: 7) {
+                            if entry.isRunning { ProgressView().controlSize(.mini) }
+                            else { Image(systemName: entry.status == 0 ? "checkmark.circle" : "exclamationmark.circle").foregroundStyle(entry.status == 0 ? Color.green : .orange) }
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(entry.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                HStack(spacing: 5) { Text(entry.startedAt, style: .time); Text(entry.summary(model.language)) }
+                                    .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        }.tag(entry.id)
+                        .contextMenu { Button(text("删除记录", "Remove entry")) { model.removeGitConsoleEntry(entry.id) }.disabled(entry.isRunning) }
+                    }
+                    if entries.isEmpty { Text(text("暂无操作记录", "No operation history")).font(.caption).foregroundStyle(.secondary) }
+                }.listStyle(.sidebar).scrollContentBackground(.hidden)
+            }
         } second: {
             if let entry = model.selectedGitConsoleEntry {
                 VStack(spacing: 0) {
                     HStack(spacing: 8) {
-                        Text(entry.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                        Text(entry.title).font(.system(size: 11, weight: .semibold)).lineLimit(1)
                         Text(entry.summary(model.language)).font(.system(size: 10)).foregroundStyle(.secondary)
                         Spacer(minLength: 0)
-                        Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(entry.output, forType: .string) } label: { Image(systemName: "doc.on.doc") }.disabled(entry.output.isEmpty).help(text("复制输出", "Copy output"))
-                        Button { model.removeGitConsoleEntry(entry.id) } label: { Image(systemName: "trash") }.disabled(entry.isRunning).help(text("删除当前记录", "Remove current entry"))
-                    }.buttonStyle(.plain).padding(10)
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                        Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(entry.output, forType: .string) } label: { Image(systemName: "doc.on.doc").font(.system(size: 10.5)) }.disabled(entry.output.isEmpty).help(text("复制输出", "Copy output"))
+                        Button { model.removeGitConsoleEntry(entry.id) } label: { Image(systemName: "trash").font(.system(size: 10.5)) }.disabled(entry.isRunning).help(text("删除当前记录", "Remove current entry"))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 10)
+                    .frame(height: WorkbenchChrome.rowHeight)
+                    .background(WorkbenchChrome.panel)
+
+                    Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass").font(.system(size: 10)).foregroundStyle(.secondary)
                         TextField(text("筛选输出", "Filter output"), text: $search).textFieldStyle(.plain)
-                        if !search.isEmpty { Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain) }
-                    }.font(.system(size: 10)).padding(.horizontal, 10).padding(.bottom, 6)
+                        if !search.isEmpty { Button { search = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 10)) }.buttonStyle(.plain) }
+                    }
+                    .font(.system(size: 10))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3.5)
+                    .background(WorkbenchChrome.editor, in: Capsule())
+                    .overlay(Capsule().stroke(WorkbenchChrome.subtleDivider, lineWidth: 0.5))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+
                     if entry.truncated { Text(text("输出过长，仅保留末尾部分。", "Output truncated; showing the last portion.")).font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 10) }
-                    Divider()
+                    Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
                     RunLogView(output: search.isEmpty ? entry.output : entry.output.components(separatedBy: .newlines).filter { $0.localizedCaseInsensitiveContains(search) }.joined(separator: "\n"), followsOutput: false, sessionID: entry.id, accessibilityLabel: "Git 控制台 / Git console")
                 }
             } else {

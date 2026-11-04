@@ -85,6 +85,15 @@ final class NativeFileTreeTests: XCTestCase {
         coordinator.openSelection()
         XCTAssertTrue(model.selectedFile.isEmpty)
     }
+    func testFileIconsRecognizeCommonProjectFilesAndLanguages() {
+        XCTAssertEqual(FileTreeIcon.symbol(name: "Dockerfile", extension: ""), "shippingbox")
+        XCTAssertEqual(FileTreeIcon.symbol(name: ".gitignore", extension: ""), "gearshape")
+        XCTAssertEqual(FileTreeIcon.symbol(name: "main.swift", extension: "swift"), "swift")
+        XCTAssertEqual(FileTreeIcon.symbol(name: "app.tsx", extension: "tsx"), "curlybraces.square")
+        XCTAssertEqual(FileTreeIcon.symbol(name: "schema.sql", extension: "sql"), "cylinder.split.1x2")
+        XCTAssertEqual(FileTreeIcon.symbol(name: "README.md", extension: "md"), "doc.richtext")
+        XCTAssertEqual(FileTreeIcon.symbol(name: "archive.zip", extension: "zip"), "archivebox")
+    }
     func testNativeOutlinePreservesDirectorySelectionAndFileMenus() async throws {
         _ = NSApplication.shared
         let root = try fixture()

@@ -137,13 +137,39 @@ struct GitStructuredDiff: View {
     }
     @ViewBuilder private func hunkActions(_ index: Int, document: GitDiffDocument) -> some View {
         if canApply && document.supportsPartialIndex {
-            Button(staged ? text("取消暂存此块", "Unstage hunk") : text("暂存此块", "Stage hunk")) {
+            Button {
                 apply(index, document.source, staged)
-            }.buttonStyle(.borderless).font(.system(size: 10))
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: staged ? "minus.circle" : "plus.circle")
+                        .font(.system(size: 9, weight: .semibold))
+                    Text(staged ? text("取消暂存块", "Unstage hunk") : text("暂存块", "Stage hunk"))
+                }
+                .font(.system(size: 9.5, weight: .medium))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2.5)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                .foregroundStyle(Color.accentColor)
+            }
+            .buttonStyle(.plain)
+
             if !staged, let discard {
-                Button(text("回滚此块…", "Revert hunk…"), role: .destructive) { discard(index, document.source) }
-                    .buttonStyle(.borderless).font(.system(size: 10))
-                    .help(text("仅回滚此块的未暂存修改，保留暂存内容", "Revert this unstaged hunk and keep staged content"))
+                Button {
+                    discard(index, document.source)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.uturn.backward")
+                            .font(.system(size: 8.5, weight: .medium))
+                        Text(text("回滚块…", "Revert hunk…"))
+                    }
+                    .font(.system(size: 9.5, weight: .medium))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2.5)
+                    .background(Color.red.opacity(0.10), in: RoundedRectangle(cornerRadius: 4))
+                    .foregroundStyle(Color.red.opacity(0.88))
+                }
+                .buttonStyle(.plain)
+                .help(text("仅回滚此块的未暂存修改，保留暂存内容", "Revert this unstaged hunk and keep staged content"))
             }
         }
     }
@@ -161,8 +187,22 @@ struct GitStructuredDiff: View {
             .frame(width: width)
     }
     private func cell(number: Int?, value: String?, tint: Color, width: CGFloat, side: GitDiffSide) -> some View {
-        HStack(spacing: 0) {
-            Text(number.map(String.init) ?? "").font(.system(size: 10, design: .monospaced)).foregroundStyle(.tertiary).frame(width: 42, alignment: .trailing).padding(.trailing, 8)
+        let isChanged = tint != .clear
+        let bgTint: Color = {
+            if tint == .green {
+                return Color(red: 0.16, green: 0.45, blue: 0.24).opacity(0.22)
+            } else if tint == .red {
+                return Color(red: 0.60, green: 0.18, blue: 0.22).opacity(0.22)
+            }
+            return .clear
+        }()
+
+        return HStack(spacing: 0) {
+            Text(number.map(String.init) ?? "")
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(isChanged ? Color.primary.opacity(0.60) : Color.secondary.opacity(0.40))
+                .frame(width: 42, alignment: .trailing)
+                .padding(.trailing, 8)
             code(value.map { PreviewLinePolicy.lines(in: $0).first ?? "" } ?? " ")
                 .fixedSize(horizontal: true, vertical: true)
                 .background(GeometryReader { geometry in
@@ -171,6 +211,8 @@ struct GitStructuredDiff: View {
                 .offset(x: -horizontal.offset(side, column: width))
                 .frame(width: max(0, width - GitDiffHorizontalState.gutter), height: 21, alignment: .leading)
                 .clipped().help(value ?? "")
-        }.frame(width: width, height: 21, alignment: .leading).background(value == nil ? Color.primary.opacity(0.025) : tint.opacity(0.08))
+        }
+        .frame(width: width, height: 21, alignment: .leading)
+        .background(value == nil ? Color.primary.opacity(0.025) : bgTint)
     }
 }

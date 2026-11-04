@@ -104,20 +104,31 @@ struct RunToolbar: View {
                 Button(text("停止全部进程", "Stop all processes")) {
                     for (project, task) in active { model.stopTask(task.id, projectID: project.id) }
                 }
-            } label: { Label("\(active.count)", systemImage: "stop.fill").foregroundStyle(.red) }
-                .menuStyle(.borderlessButton).fixedSize().help(text("选择要停止的进程", "Choose a process to stop"))
+            } label: {
+                Label("\(active.count)", systemImage: "stop.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+                    .padding(.trailing, 6)
+            }
+            .menuStyle(.borderlessButton).fixedSize().help(text("选择要停止的进程", "Choose a process to stop"))
         } else {
             Button {
                 if let (project, task) = active.first { model.stopTask(task.id, projectID: project.id) }
-            } label: { Image(systemName: "stop.fill").foregroundStyle(active.isEmpty ? Color.secondary : .red) }
-                .buttonStyle(.borderless).controlSize(.regular).disabled(active.isEmpty || (active.first.map { $0.1.isStopping && !model.restartingTaskIDs.contains($0.1.id) } ?? false))
-                .help(active.first.map { text("停止 ", "Stop ") + $0.0.name + " · " + $0.1.displayName } ?? text("没有运行中的进程", "No running processes"))
+            } label: {
+                Image(systemName: "stop.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(active.isEmpty ? Color.secondary : .red)
+                    .padding(.trailing, 6)
+            }
+            .buttonStyle(.borderless).controlSize(.regular).disabled(active.isEmpty || (active.first.map { $0.1.isStopping && !model.restartingTaskIDs.contains($0.1.id) } ?? false))
+            .help(active.first.map { text("停止 ", "Stop ") + $0.0.name + " · " + $0.1.displayName } ?? text("没有运行中的进程", "No running processes"))
         }
     }
 }
 
 struct ProcessTool: View {
     @ObservedObject var model: WorkbenchModel
+    var onHide: (() -> Void)? = nil
     @State private var search = ""
     @State private var followsOutput = true
     private func text(_ zh: String, _ en: String) -> String { Copy.t(zh, en, language: model.language) }
@@ -127,10 +138,13 @@ struct ProcessTool: View {
         return tasks.first { $0.id == id } ?? tasks.last
     }
     var body: some View {
-        WorkbenchSplit("process.sessions", initial: 260, minimum: 180, otherMinimum: 300) {
+        WorkbenchSplit("process.sessions", initial: 240, minimum: 170, otherMinimum: 280) {
             VStack(spacing: 0) {
-                HStack {
-                    Text(text("运行会话", "Run sessions")).font(.system(size: 11, weight: .semibold))
+                HStack(spacing: 8) {
+                    Text(text("运行进程", "Processes")).font(.system(size: 11, weight: .semibold))
+                    if !tasks.isEmpty {
+                        Text("\(tasks.count)").font(.system(size: 10)).foregroundStyle(.secondary)
+                    }
                     Spacer()
                     Button { model.showRunSettings = true } label: { Image(systemName: "gearshape") }
                         .help(text("编辑运行配置", "Edit run configurations"))
@@ -141,52 +155,91 @@ struct ProcessTool: View {
                         Divider()
                         Button(text("新建运行配置…", "New configuration…")) { model.showRunSettings = true }
                     } label: { Image(systemName: "plus") }.menuStyle(.borderlessButton).fixedSize()
-                }.buttonStyle(.plain).padding(10)
-                    .background(WorkbenchChrome.raised)
-                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
-                ScrollView {
-                    LazyVStack(spacing: 2) {
-                        ForEach(tasks.reversed()) { task in
-                            Button { model.selectTask(task.id); search = "" } label: {
-                                HStack(spacing: 8) {
-                                    Circle().fill(task.isRunning ? (task.isStopping ? .orange : .green) : (task.exitCode == 0 ? .blue : task.wasStopped ? .secondary : .orange)).frame(width: 6, height: 6)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(task.displayName).font(.system(size: 11, weight: .medium)).lineLimit(1)
-                                        Text(task.statusText(model.language)).font(.system(size: 10)).foregroundStyle(.secondary)
-                                    }
-                                    Spacer(minLength: 0)
-                                    if model.restartingTaskIDs.contains(task.id) { ProgressView().controlSize(.mini) }
-                                }.padding(8).contentShape(Rectangle())
-                                    .background(selected?.id == task.id ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 5))
-                            }.buttonStyle(.plain).help(task.command)
-                                .contextMenu {
-                                    Button(text("重新运行", "Rerun")) { model.rerunTask(task.id) }.disabled(task.isStopping || model.restartingTaskIDs.contains(task.id))
-                                    if task.isRunning { Button(text("停止", "Stop")) { model.stopTask(task.id) }.disabled(task.isStopping && !model.restartingTaskIDs.contains(task.id)) }
-                                    else { Button(text("关闭会话", "Close session")) { model.removeFinishedTask(task.id) }.disabled(model.restartingTaskIDs.contains(task.id)) }
-                                }
-                        }
-                        if tasks.isEmpty { Text(text("尚无运行会话", "No run sessions")).font(.caption).foregroundStyle(.secondary).padding(14) }
-                    }.padding(5)
+                        .help(text("选择或新建配置运行", "Select or create configuration to run"))
                 }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 10)
+                .frame(height: WorkbenchChrome.rowHeight)
+                .background(WorkbenchChrome.raised)
+
                 Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
+
+                if tasks.isEmpty {
+                    VStack(spacing: 8) {
+                        Spacer()
+                        Image(systemName: "terminal")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.tertiary)
+                        Text(text("暂无运行中的会话", "No active sessions"))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Text(text("可通过上方“+”或快捷命令启动", "Start via ‘+’ above or command below"))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .multilineTextAlignment(.center)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.horizontal, 12)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 2) {
+                            ForEach(tasks.reversed()) { task in
+                                Button { model.selectTask(task.id); search = "" } label: {
+                                    HStack(spacing: 8) {
+                                        Circle().fill(task.isRunning ? (task.isStopping ? .orange : .green) : (task.exitCode == 0 ? .blue : task.wasStopped ? .secondary : .orange)).frame(width: 6, height: 6)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(task.displayName).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                                            Text(task.statusText(model.language)).font(.system(size: 10)).foregroundStyle(.secondary)
+                                        }
+                                        Spacer(minLength: 0)
+                                        if model.restartingTaskIDs.contains(task.id) { ProgressView().controlSize(.mini) }
+                                    }.padding(.horizontal, 8).padding(.vertical, 5).contentShape(Rectangle())
+                                        .background(selected?.id == task.id ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 5))
+                                }.buttonStyle(.plain).help(task.command)
+                                    .contextMenu {
+                                        Button(text("重新运行", "Rerun")) { model.rerunTask(task.id) }.disabled(task.isStopping || model.restartingTaskIDs.contains(task.id))
+                                        if task.isRunning { Button(text("停止", "Stop")) { model.stopTask(task.id) }.disabled(task.isStopping && !model.restartingTaskIDs.contains(task.id)) }
+                                        else { Button(text("关闭会话", "Close session")) { model.removeFinishedTask(task.id) }.disabled(model.restartingTaskIDs.contains(task.id)) }
+                                    }
+                            }
+                        }.padding(4)
+                    }
+                }
+
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
+
                 HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8.5, weight: .bold))
+                        .foregroundStyle(.tertiary)
                     TextField(text("输入快捷命令，回车运行", "Command; Return to run"), text: $model.commandText)
-                        .textFieldStyle(.plain).font(.system(size: 11, design: .monospaced))
+                        .textFieldStyle(.plain).font(.system(size: 10.5, design: .monospaced))
                         .onSubmit { model.runCommand(command: model.commandText) }
-                    Button { model.runCommand(command: model.commandText) } label: { Image(systemName: "play.fill") }
-                        .buttonStyle(.plain).disabled(model.commandText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.selectedProjectID == nil)
+                    if !model.commandText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Button { model.runCommand(command: model.commandText) } label: {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 8.5))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(model.selectedProjectID == nil)
                         .help(text("运行快捷命令", "Run command"))
-                }.padding(10).background(WorkbenchChrome.raised)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .frame(height: 28)
+                .background(WorkbenchChrome.raised)
             }
         } second: {
-            if let task = selected {
-                VStack(spacing: 0) {
-                    HStack(spacing: 10) {
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    if let task = selected {
                         Button { model.rerunTask(task.id) } label: { Image(systemName: "arrow.clockwise") }
                             .disabled(task.isStopping || model.restartingTaskIDs.contains(task.id)).help(text("重新运行此会话", "Rerun session"))
                         Button { model.stopTask(task.id) } label: { Image(systemName: "stop.fill").foregroundStyle(task.isRunning ? Color.red : .secondary) }
                             .disabled((!task.isRunning && !model.restartingTaskIDs.contains(task.id)) || (task.isStopping && !model.restartingTaskIDs.contains(task.id))).help(text("停止此会话", "Stop session"))
-                        Text(task.displayName).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                        Text(task.displayName).font(.system(size: 11, weight: .semibold)).lineLimit(1)
                         Spacer(minLength: 0)
                         TimelineView(.periodic(from: .now, by: 1)) { context in
                             Text(task.statusText(model.language) + " · " + "\(Int((task.endedAt ?? context.date).timeIntervalSince(task.startedAt)))s")
@@ -195,29 +248,50 @@ struct ProcessTool: View {
                         Button { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(task.output, forType: .string) } label: { Image(systemName: "doc.on.doc") }.help(text("复制日志", "Copy log"))
                         Button { model.clearTaskOutput(task.id) } label: { Image(systemName: "trash") }.help(text("清空日志", "Clear log"))
                         Button { model.removeFinishedTask(task.id) } label: { Image(systemName: "xmark") }.disabled(task.isRunning || model.restartingTaskIDs.contains(task.id)).help(text("关闭已结束会话", "Close finished session"))
-                    }.buttonStyle(.plain).padding(10)
-                    Divider()
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField(text("筛选日志", "Filter log"), text: $search).textFieldStyle(.plain)
-                        if !search.isEmpty { Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain) }
-                        Toggle(text("跟随输出", "Follow output"), isOn: $followsOutput).toggleStyle(.checkbox)
-                    }.font(.system(size: 10)).padding(.horizontal, 10).padding(.vertical, 6)
-                    if task.logWasTruncated {
-                        Text(text("仅保留最近 12,000 个字符，更早日志已丢弃以控制内存。", "Showing the latest 12,000 characters; older output was discarded to limit memory."))
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10).padding(.vertical, 4)
+                    } else {
+                        Text(text("日志控制台", "Console")).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                        Spacer()
                     }
-                    RunLogView(output: search.isEmpty ? task.output : task.output.components(separatedBy: .newlines).filter { $0.localizedCaseInsensitiveContains(search) }.joined(separator: "\n"),
-                               followsOutput: followsOutput, sessionID: task.id)
-
+                    if let onHide {
+                        Divider().frame(height: 12)
+                        Button(action: onHide) {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help(text("隐藏工具窗口", "Hide tool window"))
+                    }
                 }
-            } else {
-                VStack(spacing: 10) {
-                    Image(systemName: "play.rectangle").font(.system(size: 24)).foregroundStyle(.tertiary)
-                    Text(text("运行配置或快捷命令后，在这里查看独立日志", "Run a configuration or command to view its log here")).font(.caption).foregroundStyle(.secondary)
-                    Button(text("编辑运行配置…", "Edit configurations…")) { model.showRunSettings = true }.disabled(model.selectedProjectID == nil)
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                .buttonStyle(.plain)
+                .padding(.horizontal, 10)
+                .frame(height: WorkbenchChrome.rowHeight)
+                .background(WorkbenchChrome.raised)
+
+                Rectangle().fill(WorkbenchChrome.quietSeparator).frame(height: 1)
+
+                if let task = selected {
+                    VStack(spacing: 0) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                            TextField(text("筛选日志", "Filter log"), text: $search).textFieldStyle(.plain)
+                            if !search.isEmpty { Button { search = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain) }
+                            Toggle(text("跟随输出", "Follow output"), isOn: $followsOutput).toggleStyle(.checkbox)
+                        }.font(.system(size: 10)).padding(.horizontal, 10).padding(.vertical, 5)
+                        if task.logWasTruncated {
+                            Text(text("仅保留最近 12,000 个字符，更早日志已丢弃以控制内存。", "Showing the latest 12,000 characters; older output was discarded to limit memory."))
+                                .font(.system(size: 10)).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10).padding(.vertical, 4)
+                        }
+                        RunLogView(output: search.isEmpty ? task.output : task.output.components(separatedBy: .newlines).filter { $0.localizedCaseInsensitiveContains(search) }.joined(separator: "\n"),
+                                   followsOutput: followsOutput, sessionID: task.id)
+                    }
+                } else {
+                    VStack(spacing: 10) {
+                        Image(systemName: "play.rectangle").font(.system(size: 24)).foregroundStyle(.tertiary)
+                        Text(text("运行配置或快捷命令后，在这里查看独立日志", "Run a configuration or command to view its log here")).font(.caption).foregroundStyle(.secondary)
+                        Button(text("编辑运行配置…", "Edit configurations…")) { model.showRunSettings = true }.disabled(model.selectedProjectID == nil)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
         }.onChange(of: model.selectedProjectID) { _ in search = "" }
     }
