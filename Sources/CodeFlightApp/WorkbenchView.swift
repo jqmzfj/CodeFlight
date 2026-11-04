@@ -6,6 +6,7 @@ struct WorkbenchView: View {
     @StateObject private var backdrop = WorkbenchBackdrop()
     @Environment(\.colorScheme) private var colorScheme
     @State private var showBranches = false
+    @State private var showRunConfigurations = false
     @State private var showBranchSheet = false
     @State private var showRenameBranchSheet = false
     @State private var showUpstreamSheet = false
@@ -294,39 +295,77 @@ struct WorkbenchView: View {
 
     }
 
+    /// A toolbar `Menu` is bridged to a native pull-down button, which drops the
+    /// custom pill and its width limit. A plain button keeps the chip identical
+    /// to the project and branch controls, so long configuration names truncate.
     private var runConfigurationMenu: some View {
             let name = model.selectedRunConfiguration?.name ?? Copy.t("运行配置", "Run configuration", language: model.language)
             let width = WorkbenchChipMetrics.labelWidth(name, font: .systemFont(ofSize: 11, weight: .medium), minimum: 90, maximum: 200)
-            return Menu {
-                if let configurations = model.selectedProject?.runConfigurations, !configurations.isEmpty {
-                    ForEach(configurations) { config in Button { model.selectRunConfiguration(config) } label: { if config.id == model.selectedRunConfigurationID { Label(config.name, systemImage: "checkmark") } else { Text(config.name) } } }
-                    Divider()
-                }
-                Button(Copy.t("重新自动检测配置", "Detect run configurations", language: model.language)) {
-                    model.redetectRunConfigurations()
-                }
-                Button(Copy.t("编辑运行配置…", "Edit configurations…", language: model.language)) { model.showRunSettings = true }
-            } label: {
-                HStack(spacing: 5) {
-                    Text(name)
-                        .font(.system(size: 11, weight: .medium))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(width: width, alignment: .leading)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 8).padding(.vertical, 3.5)
-                .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.primary.opacity(0.09), lineWidth: 0.5))
-                .help(name)
-                .accessibilityLabel(name)
+            return Button { showRunConfigurations.toggle() } label: {
+                RunConfigurationChipLabel(name: name, width: width)
             }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
             .fixedSize()
             .disabled(model.selectedProjectID == nil)
+            .help(name)
+            .accessibilityLabel(Copy.t("选择运行配置", "Choose run configuration", language: model.language))
+            .accessibilityValue(name)
+            .popover(isPresented: $showRunConfigurations, arrowEdge: .bottom) { runConfigurationPopover }
+    }
+
+    private var runConfigurationPopover: some View {
+        let configurations = model.selectedProject?.runConfigurations ?? []
+        return VStack(alignment: .leading, spacing: 1) {
+            if configurations.isEmpty {
+                Text(Copy.t("此项目还没有运行配置", "This project has no run configurations", language: model.language))
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 12).padding(.vertical, 10)
+            } else {
+                Text(Copy.t("运行配置", "Run configurations", language: model.language))
+                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 4)
+                ForEach(configurations) { config in
+                    Button {
+                        model.selectRunConfiguration(config)
+                        showRunConfigurations = false
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: config.id == model.selectedRunConfigurationID ? "checkmark" : "play")
+                                .font(.system(size: 9, weight: .semibold))
+                                .frame(width: 14)
+                                .foregroundStyle(config.id == model.selectedRunConfigurationID ? Color.accentColor : Color.secondary)
+                            Text(config.name).font(.system(size: 11)).lineLimit(1).truncationMode(.middle)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                        .background(config.id == model.selectedRunConfigurationID ? Color.accentColor.opacity(0.08) : Color.clear)
+                    }
+                    .buttonStyle(.plain)
+                    .help(config.command)
+                }
+                Divider().padding(.vertical, 4)
+            }
+            Button {
+                showRunConfigurations = false
+                model.redetectRunConfigurations()
+            } label: {
+                Label(Copy.t("重新自动检测配置", "Detect run configurations", language: model.language), systemImage: "arrow.clockwise")
+                    .padding(.horizontal, 12).padding(.vertical, 6).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Button {
+                showRunConfigurations = false
+                model.showRunSettings = true
+            } label: {
+                Label(Copy.t("编辑运行配置…", "Edit configurations…", language: model.language), systemImage: "slider.horizontal.3")
+                    .padding(.horizontal, 12).padding(.vertical, 6).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .font(.system(size: 11))
+        .padding(.vertical, 4)
+        .frame(width: 340)
     }
 
     private var projectTabs: some View {
