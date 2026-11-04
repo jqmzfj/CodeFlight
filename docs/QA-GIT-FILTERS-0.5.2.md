@@ -7,6 +7,7 @@
 - **作者筛选**：菜单列出当前仓库最近 500 个非合并提交的作者（`git log -n 500 --no-merges --format=%an`，去重、按本地化名称排序）。选择后由 `git log --author=<字面名称> --regexp-ignore-case` 过滤；名字先做正则转义，含 `.`、`(` 等字符的作者名不会被当作模式。长度超过 200 字符或含换行／NUL 的输入直接拒绝。
 - **日期筛选**：提供全部、今天、最近 7／30／90 天与自定义区间。边界按本机时区的自然日计算（`yyyy-MM-dd`），自定义区间的结束日期加一天作为 `--until` 上界，保证结束当天完整包含。Git 会把裸日期按 UTC 零点解析，因此命令中补成 `yyyy-MM-ddT00:00:00` 的本地零点；非 `yyyy-MM-dd` 的输入、含换行／NUL 的输入直接拒绝。
 - **筛选与分页一致**：筛选条件进入 `GitHistoryContext`，改变时清空已加载页并从第一页重读；`--skip`、“加载更早的提交”和 revision 校验都作用于过滤后的历史。revision 令牌同时包含筛选参数，跨筛选条件续页会返回“需要刷新”而不是混合结果。
+- **分支排序**：分支导航的本地列表把当前检出分支固定在第一项，其余分支保持 Git 返回的顺序；搜索过滤和“仅显示收藏”后仍按该规则显示，回车选中首个列表项时也先选当前分支。`GitBranchOrdering.currentFirst` 只移动当前分支，不重排其他条目。
 - **界面**：筛选芯片显示当前值，激活时高亮并可一键清除；无匹配时显示“没有匹配的提交”。作者筛选或文本搜索生效时隐藏提交连线，避免不连续历史画出误导性的分支线。自定义区间使用独立窗口，取消不改动当前筛选。
 - **IDEA 运行配置导入**：解析 `.idea/workspace.xml` 与 `.idea/runConfigurations/*.xml`（单文件上限 1 MB／256 KB），支持 Spring Boot（Maven）、Java Application、JUnit、Go Application、Python；导入结果与 npm、Maven、Go、ThinkPHP、Python 脚本探测合并展示，只读配置、不启动命令。
 - **文件树**：按文件名与扩展名给图标（Dockerfile、Makefile、包清单、`.gitignore`、环境文件、常见语言等），Git 状态颜色优先；双击目录展开／收起，双击文件打开预览。
@@ -15,9 +16,10 @@
 ## 验证
 
 - `swift build` 通过，无警告。
-- `swift test` 全量 **323 项通过，0 失败**（232 秒）。
-- 新增 10 项测试：
+- `swift test` 全量 **327 项通过，0 失败**（229 秒）。
+- 新增 14 项测试：
   - `GitHistoryFilterTests` 6 项：全部／今天／7／30／90 天的自然日边界、跨月跨年、自定义区间含结束日、单日区间、起止颠倒、归一化到零点。
+  - `GitBranchOrderingTests` 4 项：当前分支从中间移到首位且其余顺序不变、已在首位／为空／已被外部删除时保持不变、单分支、含斜杠的分支名按字面匹配。
   - `GitHistoryPagingTests` 4 项：作者名按字面匹配（`Alpha.Beta` 不会匹配 `AlphaXBeta`）、作者筛选下的 50＋10 分页、跨筛选续页被拒绝、作者列表去重排序；日期 `--since`／`--until` 边界与结束日包含、空结果；非法输入（换行、超长、错误日期格式）拒绝；`GitHistoryStore` 在筛选变化时重载并清除旧选择。
 - 日期边界用真实仓库和固定作者／提交日期验证；作者筛选用 63 个提交的真实仓库验证分页。
 - 调试构建打包为 `CodeFlight.app`（`CODEFLIGHT_EXECUTABLE=.build/debug/CodeFlight ./scripts/package-app.sh`）后，以 `CODEFLIGHT_SMOKE_TEST=1` 启动 3 秒未异常退出，收到 SIGTERM 正常结束（-15）。

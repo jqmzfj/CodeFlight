@@ -1,5 +1,17 @@
 import SwiftUI
 
+/// Keeps the checked-out branch at the top of the local list without
+/// re-sorting the remaining ones, so the list stays stable across refreshes.
+enum GitBranchOrdering {
+    static func currentFirst(_ branches: [String], current: String) -> [String] {
+        guard !current.isEmpty, let index = branches.firstIndex(of: current), index > 0 else { return branches }
+        var values = branches
+        let branch = values.remove(at: index)
+        values.insert(branch, at: 0)
+        return values
+    }
+}
+
 /// Selecting a reference only changes the log scope. Repository mutations are
 /// explicit context-menu actions using the existing checked model operations.
 struct GitHistoryNavigator: View {
@@ -330,7 +342,10 @@ struct GitHistoryNavigator: View {
     }
 
     private func selectFirstMatch() {
-        if let name = filtered(model.gitBranches).first { selection = "refs/heads/" + name; return }
+        if let name = GitBranchOrdering.currentFirst(filtered(model.gitBranches), current: model.gitBranch).first {
+            selection = "refs/heads/" + name
+            return
+        }
         if let name = filtered(model.gitRemoteBranches).first { selection = "refs/remotes/" + name; return }
         if let name = filtered(model.gitTags).first { selection = "refs/tags/" + name }
     }
@@ -338,7 +353,8 @@ struct GitHistoryNavigator: View {
     @ViewBuilder
     private var localBranchesTree: some View {
         let allLocal = filtered(model.gitBranches)
-        let list = showOnlyFavorites ? allLocal.filter { favoriteBranches.contains($0) } : allLocal
+        let visible = showOnlyFavorites ? allLocal.filter { favoriteBranches.contains($0) } : allLocal
+        let list = GitBranchOrdering.currentFirst(visible, current: model.gitBranch)
         ForEach(list, id: \.self) { branch in
             branchRow(name: branch, displayName: branch, prefix: "refs/heads/")
         }
