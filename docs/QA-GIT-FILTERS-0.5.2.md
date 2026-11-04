@@ -20,6 +20,7 @@
   - `GitHistoryFilterTests` 6 项：全部／今天／7／30／90 天的自然日边界、跨月跨年、自定义区间含结束日、单日区间、起止颠倒、归一化到零点。
   - `GitHistoryPagingTests` 4 项：作者名按字面匹配（`Alpha.Beta` 不会匹配 `AlphaXBeta`）、作者筛选下的 50＋10 分页、跨筛选续页被拒绝、作者列表去重排序；日期 `--since`／`--until` 边界与结束日包含、空结果；非法输入（换行、超长、错误日期格式）拒绝；`GitHistoryStore` 在筛选变化时重载并清除旧选择。
 - 日期边界用真实仓库和固定作者／提交日期验证；作者筛选用 63 个提交的真实仓库验证分页。
+- 调试构建打包为 `CodeFlight.app`（`CODEFLIGHT_EXECUTABLE=.build/debug/CodeFlight ./scripts/package-app.sh`）后，以 `CODEFLIGHT_SMOKE_TEST=1` 启动 3 秒未异常退出，收到 SIGTERM 正常结束（-15）。
 
 ## 边界与未验证项
 
