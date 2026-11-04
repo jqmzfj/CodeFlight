@@ -303,4 +303,4 @@ AX尺寸改为实时查询所属sheet，支持原生边缘缩放；补齐聚焦�
 - **运行配置导入**：新增 IntelliJ IDEA 解析器，读取 `.idea/workspace.xml` 与 `.idea/runConfigurations/*.xml`，支持 Spring Boot（Maven）、Java Application、JUnit、Go、Python，与既有脚本探测合并到“从项目导入”。
 - **文件树**：类型图标（按文件名／扩展名，Git 状态色优先）与双击展开／打开；工具栏改为统一线宽的自绘图标。
 - **工作区外观**：画布／面板语义色、1pt 内缩 + 7pt 圆角浮层面板、Git 工具窗口的 JetBrains 式标签与固定列宽提交行、进程面板空态与计数。
-- **验证**：`swift build` 通过；`swift test` 全量 327 项 0 失败（229 秒）；调试构建打包后以 `CODEFLIGHT_SMOKE_TEST=1` 启动 3 秒并正常结束。未执行双架构 Release、签名与正式包启动 smoke，未创建 Release；筛选菜单与自定义区间窗口的实际外观／键盘操作仍待在实机复核。
+- **验证**：`swift build` 通过；`swift test` 全量 331 项 0 失败（226 秒）；调试构建打包后以 `CODEFLIGHT_SMOKE_TEST=1` 启动 3 秒并正常结束。未执行双架构 Release、签名与正式包启动 smoke，未创建 Release；筛选菜单与自定义区间窗口的实际外观／键盘操作仍待在实机复核。

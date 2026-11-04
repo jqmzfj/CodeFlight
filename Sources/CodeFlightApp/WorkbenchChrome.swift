@@ -2,6 +2,16 @@ import SwiftUI
 import AppKit
 import ImageIO
 
+/// Toolbar chips keep a bounded slot: long branch or run-configuration names
+/// truncate instead of stretching the window toolbar, and short ones stay
+/// compact. Widths are measured with the same font used for rendering.
+enum WorkbenchChipMetrics {
+    static func labelWidth(_ text: String, font: NSFont, minimum: CGFloat, maximum: CGFloat) -> CGFloat {
+        let measured = (text as NSString).size(withAttributes: [.font: font]).width
+        return min(max(measured.rounded(.up), minimum), maximum)
+    }
+}
+
 /// Shared semantic surfaces; keep editor contrast separate from window chrome.
 enum WorkbenchChrome {
     static let editorColor = dynamicColor("editor", light: (1, 1, 1), dark: (0.105, 0.109, 0.118))

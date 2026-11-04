@@ -215,7 +215,13 @@ struct WorkbenchView: View {
         ToolbarItem(placement: .principal) {
             HStack(spacing: 8) {
                 Image(systemName: "folder").foregroundStyle(.secondary).accessibilityHidden(true)
-                Text(model.selectedProject?.name ?? "CodeFlight").font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle).frame(maxWidth: 180).help(model.selectedProject?.path ?? "CodeFlight")
+                Text(model.selectedProject?.name ?? "CodeFlight")
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1).truncationMode(.middle)
+                    .frame(width: WorkbenchChipMetrics.labelWidth(model.selectedProject?.name ?? "CodeFlight",
+                                                                  font: .systemFont(ofSize: 12, weight: .semibold),
+                                                                  minimum: 60, maximum: 160), alignment: .leading)
+                    .help(model.selectedProject?.path ?? "CodeFlight")
                 if model.selectedProjectID != nil {
                     Spacer().frame(width: 3)
                     branchControl
@@ -231,13 +237,15 @@ struct WorkbenchView: View {
     }
 
     private var branchControl: some View {
-            Button { showBranches.toggle() } label: {
+            let label = model.gitBranch.isEmpty ? (model.isGitRepository ? "HEAD" : Copy.t("未初始化 Git", "Git not initialized", language: model.language)) : model.gitBranch
+            let width = WorkbenchChipMetrics.labelWidth(label, font: .systemFont(ofSize: 11, weight: .medium), minimum: 44, maximum: 160)
+            return Button { showBranches.toggle() } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "arrow.triangle.branch")
                         .font(.system(size: 11, weight: .semibold))
-                    Text(model.gitBranch.isEmpty ? (model.isGitRepository ? "HEAD" : Copy.t("未初始化 Git", "Git not initialized", language: model.language)) : model.gitBranch)
+                    Text(label)
                         .font(.system(size: 11, weight: .medium))
-                        .lineLimit(1).truncationMode(.middle).frame(maxWidth: 180)
+                        .lineLimit(1).truncationMode(.middle).frame(width: width, alignment: .leading)
                     if let tracking = model.gitTracking {
                         if tracking.gone {
                             Text("!").font(.system(size: 10, weight: .bold, design: .monospaced)).foregroundStyle(.orange)
@@ -287,7 +295,9 @@ struct WorkbenchView: View {
     }
 
     private var runConfigurationMenu: some View {
-            Menu {
+            let name = model.selectedRunConfiguration?.name ?? Copy.t("运行配置", "Run configuration", language: model.language)
+            let width = WorkbenchChipMetrics.labelWidth(name, font: .systemFont(ofSize: 11, weight: .medium), minimum: 90, maximum: 200)
+            return Menu {
                 if let configurations = model.selectedProject?.runConfigurations, !configurations.isEmpty {
                     ForEach(configurations) { config in Button { model.selectRunConfiguration(config) } label: { if config.id == model.selectedRunConfigurationID { Label(config.name, systemImage: "checkmark") } else { Text(config.name) } } }
                     Divider()
@@ -296,7 +306,27 @@ struct WorkbenchView: View {
                     model.redetectRunConfigurations()
                 }
                 Button(Copy.t("编辑运行配置…", "Edit configurations…", language: model.language)) { model.showRunSettings = true }
-            } label: { Text(model.selectedRunConfiguration?.name ?? Copy.t("运行配置", "Run configuration", language: model.language)).lineLimit(1).frame(maxWidth: 130) }.menuStyle(.borderlessButton).fixedSize().disabled(model.selectedProjectID == nil)
+            } label: {
+                HStack(spacing: 5) {
+                    Text(name)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(width: width, alignment: .leading)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8).padding(.vertical, 3.5)
+                .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.primary.opacity(0.09), lineWidth: 0.5))
+                .help(name)
+                .accessibilityLabel(name)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .disabled(model.selectedProjectID == nil)
     }
 
     private var projectTabs: some View {
