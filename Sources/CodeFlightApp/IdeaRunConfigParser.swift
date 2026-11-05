@@ -206,7 +206,15 @@ enum IdeaRunConfigParser {
             results.append(RunConfiguration(name: name, command: command, workingDirectory: workingDir))
         }
 
-        for raw in rawConfigs {
+        // Prioritize actual runnable applications (Spring Boot, Application, Go, Python, Node) before tests (JUnit)
+        let sortedConfigs = rawConfigs.sorted { c1, c2 in
+            let isTest1 = c1.type == "JUnit"
+            let isTest2 = c2.type == "JUnit"
+            if isTest1 != isTest2 { return !isTest1 }
+            return false
+        }
+
+        for raw in sortedConfigs {
             switch raw.type {
             case "SpringBootApplicationConfigurationType":
                 var flags: [String] = []
