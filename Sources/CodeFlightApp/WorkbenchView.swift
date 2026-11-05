@@ -221,7 +221,7 @@ struct WorkbenchView: View {
                     .lineLimit(1).truncationMode(.middle)
                     .frame(width: WorkbenchChipMetrics.labelWidth(model.selectedProject?.name ?? "CodeFlight",
                                                                   font: .systemFont(ofSize: 12, weight: .semibold),
-                                                                  minimum: 60, maximum: 160), alignment: .leading)
+                                                                  minimum: 60, maximum: 160, slack: 4), alignment: .leading)
                     .help(model.selectedProject?.path ?? "CodeFlight")
                 if model.selectedProjectID != nil {
                     Spacer().frame(width: 3)
@@ -239,9 +239,9 @@ struct WorkbenchView: View {
 
     private var branchControl: some View {
             let label = model.gitBranch.isEmpty ? (model.isGitRepository ? "HEAD" : Copy.t("未初始化 Git", "Git not initialized", language: model.language)) : model.gitBranch
-            let width = WorkbenchChipMetrics.labelWidth(label, font: .systemFont(ofSize: 11, weight: .medium), minimum: 44, maximum: 160)
+            let width = WorkbenchChipMetrics.labelWidth(label, font: .systemFont(ofSize: 11, weight: .medium), minimum: 44, maximum: 160, slack: 4)
             return Button { showBranches.toggle() } label: {
-                HStack(spacing: 5) {
+                HStack(spacing: 6) {
                     Image(systemName: "arrow.triangle.branch")
                         .font(.system(size: 11, weight: .semibold))
                     Text(label)
@@ -264,7 +264,7 @@ struct WorkbenchView: View {
                     }
                     Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)).foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 8).padding(.vertical, 3.5)
+                .padding(.horizontal, 10).padding(.vertical, 3.5)
                 .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.primary.opacity(0.09), lineWidth: 0.5))
             }.buttonStyle(.plain).accessibilityLabel(Copy.t("切换与管理分支", "Switch and manage branches", language: model.language))
@@ -300,7 +300,7 @@ struct WorkbenchView: View {
     /// to the project and branch controls, so long configuration names truncate.
     private var runConfigurationMenu: some View {
             let name = model.selectedRunConfiguration?.name ?? Copy.t("运行配置", "Run configuration", language: model.language)
-            let width = WorkbenchChipMetrics.labelWidth(name, font: .systemFont(ofSize: 11, weight: .medium), minimum: 90, maximum: 200)
+            let width = WorkbenchChipMetrics.labelWidth(name, font: .systemFont(ofSize: 11, weight: .medium), minimum: 90, maximum: 200, slack: 4)
             return Button { showRunConfigurations.toggle() } label: {
                 RunConfigurationChipLabel(name: name, width: width)
             }

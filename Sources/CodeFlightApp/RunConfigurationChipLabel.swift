@@ -8,7 +8,7 @@ struct RunConfigurationChipLabel: View {
     let width: CGFloat
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             Text(name)
                 .font(.system(size: 11, weight: .medium))
                 .lineLimit(1)
@@ -18,7 +18,7 @@ struct RunConfigurationChipLabel: View {
                 .font(.system(size: 7, weight: .bold))
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 8).padding(.vertical, 3.5)
+        .padding(.horizontal, 10).padding(.vertical, 3.5)
         .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.primary.opacity(0.09), lineWidth: 0.5))
     }

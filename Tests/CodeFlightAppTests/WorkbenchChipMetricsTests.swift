@@ -34,4 +34,13 @@ final class WorkbenchChipMetricsTests: XCTestCase {
         XCTAssertEqual(widths, widths.sorted())
         XCTAssertEqual(widths.last, 200)
     }
+
+    func testSlackAddsBreathingRoomButStillClamps() {
+        let name = "moe-portal build"
+        let plain = WorkbenchChipMetrics.labelWidth(name, font: font, minimum: 40, maximum: 400)
+        let withSlack = WorkbenchChipMetrics.labelWidth(name, font: font, minimum: 40, maximum: 400, slack: 4)
+        XCTAssertEqual(withSlack, plain + 4)
+        let long = String(repeating: "x", count: 120)
+        XCTAssertEqual(WorkbenchChipMetrics.labelWidth(long, font: font, minimum: 40, maximum: 200, slack: 4), 200)
+    }
 }

@@ -4,10 +4,11 @@ import ImageIO
 
 /// Toolbar chips keep a bounded slot: long branch or run-configuration names
 /// truncate instead of stretching the window toolbar, and short ones stay
-/// compact. Widths are measured with the same font used for rendering.
+/// compact. Widths are measured with the same font used for rendering; a small
+/// slack keeps the text from sitting flush against the chip's decoration.
 enum WorkbenchChipMetrics {
-    static func labelWidth(_ text: String, font: NSFont, minimum: CGFloat, maximum: CGFloat) -> CGFloat {
-        let measured = (text as NSString).size(withAttributes: [.font: font]).width
+    static func labelWidth(_ text: String, font: NSFont, minimum: CGFloat, maximum: CGFloat, slack: CGFloat = 0) -> CGFloat {
+        let measured = (text as NSString).size(withAttributes: [.font: font]).width + slack
         return min(max(measured.rounded(.up), minimum), maximum)
     }
 }
