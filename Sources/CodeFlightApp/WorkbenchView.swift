@@ -375,26 +375,36 @@ struct WorkbenchView: View {
         HStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 0) {
+                    HStack(spacing: 4) {
                         ForEach(model.projects) { project in
                             ProjectTab(project: project, active: model.selectedProjectID == project.id, language: model.language, onSelect: { model.selectProject(project) }, onClose: { model.closeProject(project.id) }, onReveal: {
                                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: project.path)])
                             })
                                 .id(project.id)
                         }
+                        Button { model.addProject() } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 11, weight: .semibold))
+                                .frame(width: 28, height: 28)
+                                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(Copy.t("添加项目", "Add project", language: model.language))
+                        .help(Copy.t("添加项目", "Add project", language: model.language))
+                        .contextMenu {
+                            Button(Copy.t("打开本地项目…", "Open local project…", language: model.language)) { model.addProject() }
+                            Button(Copy.t("克隆仓库…", "Clone repository…", language: model.language)) { model.showCloneSheet = true }
+                        }
                     }
+                    .padding(.horizontal, 8)
                 }
                 .onAppear { if let id = model.selectedProjectID { proxy.scrollTo(id, anchor: .center) } }
                 .onChange(of: model.selectedProjectID) { id in
                     if let id { proxy.scrollTo(id, anchor: .center) }
                 }
             }
-            Spacer().frame(width: 5)
-            Button { model.addProject() } label: { Image(systemName: "plus").frame(width: 34, height: 30) }.buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel(Copy.t("添加项目", "Add project", language: model.language)).help(Copy.t("添加项目", "Add project", language: model.language))
-                .contextMenu {
-                    Button(Copy.t("打开本地项目…", "Open local project…", language: model.language)) { model.addProject() }
-                    Button(Copy.t("克隆仓库…", "Clone repository…", language: model.language)) { model.showCloneSheet = true }
-                }
+            Spacer(minLength: 0)
         }
         .frame(height: 34)
         .background(WorkbenchChrome.bar)
@@ -420,15 +430,12 @@ struct WorkbenchView: View {
                 }
             }
             Spacer().frame(height: 12)
-            Button { model.showSettings = true } label: { Image(systemName: "gearshape") }
-                .buttonStyle(.plain)
-                .foregroundStyle(.tertiary)
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
-                .background(settingsHovering ? Color.primary.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: 7))
-                .onHover { settingsHovering = $0 }
-                .animation(.easeOut(duration: 0.12), value: settingsHovering)
-                .accessibilityLabel(Copy.t("设置", "Settings", language: model.language)).help(Copy.t("设置", "Settings", language: model.language))
+            Button { model.showSettings = true } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 13.5, weight: .medium))
+            }
+            .buttonStyle(RailButtonStyle(active: model.showSettings))
+            .accessibilityLabel(Copy.t("设置", "Settings", language: model.language)).help(Copy.t("设置", "Settings", language: model.language))
         }
         .padding(.vertical, 8)
         .frame(width: toolRailWidth)

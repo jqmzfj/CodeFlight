@@ -1285,46 +1285,46 @@ struct GitFileIconView: View {
             if filename.contains("Controller") || filename.contains("Service") || filename.contains("Model") || filename.contains("Repository") || filename.hasSuffix(".class.php") {
                 ZStack {
                     Circle().fill(Color(red: 0.25, green: 0.52, blue: 0.95))
-                    Text("C").font(.system(size: 7.5, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                    Text("C").font(.system(size: 8, weight: .bold, design: .rounded)).foregroundStyle(.white)
                 }
                 .frame(width: 14, height: 14)
             } else if filename.contains("Test") {
                 ZStack(alignment: .topTrailing) {
                     Circle().fill(Color(red: 0.25, green: 0.52, blue: 0.95))
                         .frame(width: 13, height: 13)
-                    Text("C").font(.system(size: 7, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                    Text("C").font(.system(size: 8, weight: .bold, design: .rounded)).foregroundStyle(.white)
                     Circle().fill(Color.green).frame(width: 4, height: 4).offset(x: 2, y: -2)
                 }
                 .frame(width: 15, height: 14)
             } else {
                 Text("php")
-                    .font(.system(size: 7, weight: .heavy, design: .monospaced))
+                    .font(.system(size: 8, weight: .heavy, design: .monospaced))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 2.5)
                     .padding(.vertical, 0.8)
-                    .background(Color(red: 0.46, green: 0.48, blue: 0.74), in: RoundedRectangle(cornerRadius: 2.5))
+                    .background(Color(red: 0.46, green: 0.48, blue: 0.74), in: RoundedRectangle(cornerRadius: 3))
             }
         case "js":
             Text("JS")
-                .font(.system(size: 7, weight: .heavy, design: .monospaced))
+                .font(.system(size: 8, weight: .heavy, design: .monospaced))
                 .foregroundStyle(Color(red: 0.15, green: 0.15, blue: 0.15))
                 .padding(.horizontal, 2.5)
                 .padding(.vertical, 0.8)
-                .background(Color(red: 0.96, green: 0.85, blue: 0.20), in: RoundedRectangle(cornerRadius: 2.5))
+                .background(Color(red: 0.96, green: 0.85, blue: 0.20), in: RoundedRectangle(cornerRadius: 3))
         case "ts":
             Text("TS")
-                .font(.system(size: 7, weight: .heavy, design: .monospaced))
+                .font(.system(size: 8, weight: .heavy, design: .monospaced))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 2.5)
                 .padding(.vertical, 0.8)
-                .background(Color(red: 0.18, green: 0.45, blue: 0.78), in: RoundedRectangle(cornerRadius: 2.5))
+                .background(Color(red: 0.18, green: 0.45, blue: 0.78), in: RoundedRectangle(cornerRadius: 3))
         case "vue":
             Text("V")
-                .font(.system(size: 7.5, weight: .heavy, design: .rounded))
+                .font(.system(size: 8, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 3)
                 .padding(.vertical, 0.5)
-                .background(Color(red: 0.25, green: 0.72, blue: 0.51), in: RoundedRectangle(cornerRadius: 2.5))
+                .background(Color(red: 0.25, green: 0.72, blue: 0.51), in: RoundedRectangle(cornerRadius: 3))
         case "swift":
             Image(systemName: "swift")
                 .font(.system(size: 11))
@@ -1332,18 +1332,18 @@ struct GitFileIconView: View {
                 .frame(width: 14, height: 14)
         case "py":
             Text("py")
-                .font(.system(size: 7, weight: .heavy, design: .monospaced))
+                .font(.system(size: 8, weight: .heavy, design: .monospaced))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 2.5)
                 .padding(.vertical, 0.8)
-                .background(Color(red: 0.22, green: 0.45, blue: 0.65), in: RoundedRectangle(cornerRadius: 2.5))
+                .background(Color(red: 0.22, green: 0.45, blue: 0.65), in: RoundedRectangle(cornerRadius: 3))
         case "go":
             Text("GO")
-                .font(.system(size: 6.5, weight: .heavy, design: .monospaced))
+                .font(.system(size: 8, weight: .heavy, design: .monospaced))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 2)
                 .padding(.vertical, 0.8)
-                .background(Color(red: 0.0, green: 0.65, blue: 0.85), in: RoundedRectangle(cornerRadius: 2.5))
+                .background(Color(red: 0.0, green: 0.65, blue: 0.85), in: RoundedRectangle(cornerRadius: 3))
         case "json", "yaml", "yml":
             Image(systemName: "curlybraces.square")
                 .font(.system(size: 11))
@@ -1356,18 +1356,18 @@ struct GitFileIconView: View {
                 .frame(width: 14, height: 14)
         case "html":
             Text("<>")
-                .font(.system(size: 6.5, weight: .heavy, design: .monospaced))
+                .font(.system(size: 8, weight: .heavy, design: .monospaced))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 2)
                 .padding(.vertical, 0.8)
-                .background(Color.orange, in: RoundedRectangle(cornerRadius: 2.5))
+                .background(Color.orange, in: RoundedRectangle(cornerRadius: 3))
         case "css", "scss", "less":
             Text("#")
-                .font(.system(size: 7.5, weight: .heavy, design: .monospaced))
+                .font(.system(size: 8, weight: .heavy, design: .monospaced))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 3)
                 .padding(.vertical, 0.5)
-                .background(Color.cyan, in: RoundedRectangle(cornerRadius: 2.5))
+                .background(Color.cyan, in: RoundedRectangle(cornerRadius: 3))
         case "sql":
             Image(systemName: "cylinder.split.1x2")
                 .font(.system(size: 11))

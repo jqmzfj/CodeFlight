@@ -212,6 +212,15 @@ struct NativeFileTree: NSViewRepresentable {
         func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
             (item as? FileTreeEntry)?.file.isDirectory == true
         }
+        func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
+            let identifier = NSUserInterfaceItemIdentifier("fileRow")
+            if let row = outlineView.makeView(withIdentifier: identifier, owner: self) as? FileTreeRowView {
+                return row
+            }
+            let row = FileTreeRowView()
+            row.identifier = identifier
+            return row
+        }
         func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
             guard let entry = item as? FileTreeEntry else { return nil }
             let identifier = NSUserInterfaceItemIdentifier("fileCell")
@@ -248,7 +257,7 @@ struct NativeFileTree: NSViewRepresentable {
             // at the point where users choose a file. This mirrors Xcode and
             // JetBrains navigators without adding another badge column or
             // retaining any extra tree data.
-            cell.textField?.textColor = entry.isLimitNotice ? .secondaryLabelColor : statusColor(for: entry.file)
+            cell.textField?.textColor = entry.isLimitNotice ? .secondaryLabelColor : (statusColor(for: entry.file) ?? .labelColor)
             cell.imageView?.image = NSImage(systemSymbolName: loading ? "arrow.triangle.2.circlepath" : (entry.file.isDirectory ? "folder" : entry.file.icon), accessibilityDescription: nil)
             let gitColor = statusColor(for: entry.file)
             cell.imageView?.contentTintColor = loading ? .secondaryLabelColor : (entry.isLimitNotice ? .secondaryLabelColor : (gitColor ?? (entry.file.isDirectory ? .systemBlue : FileTreeIcon.color(for: entry.file))))
@@ -377,5 +386,20 @@ final class FileOutlineView: NSOutlineView {
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 36 || event.keyCode == 76 { openSelection?(); return }
         super.keyDown(with: event)
+    }
+}
+
+private final class FileTreeRowView: NSTableRowView {
+    override var interiorBackgroundStyle: NSView.BackgroundStyle { .normal }
+
+    override func drawSelection(in dirtyRect: NSRect) {
+        guard selectionHighlightStyle != .none else { return }
+        let rect = bounds.insetBy(dx: 4, dy: 1)
+        let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
+        NSColor.controlAccentColor.withAlphaComponent(isEmphasized ? 0.15 : 0.10).setFill()
+        path.fill()
+        NSColor.controlAccentColor.withAlphaComponent(isEmphasized ? 0.28 : 0.16).setStroke()
+        path.lineWidth = 0.5
+        path.stroke()
     }
 }
