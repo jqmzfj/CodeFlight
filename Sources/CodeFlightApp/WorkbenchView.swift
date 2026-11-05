@@ -215,7 +215,10 @@ struct WorkbenchView: View {
         }
         ToolbarItem(placement: .principal) {
             HStack(spacing: 8) {
-                Image(systemName: "folder").foregroundStyle(.secondary).accessibilityHidden(true)
+                Image(systemName: "folder")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                    .padding(.leading, 10)
                 Text(model.selectedProject?.name ?? "CodeFlight")
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1).truncationMode(.middle)
