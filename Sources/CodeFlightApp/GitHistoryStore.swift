@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct GitHistoryContext: Equatable {
+struct GitHistoryContext: Hashable, Equatable {
     let path: String
     let scope: String
     var author: String? = nil
@@ -27,9 +27,20 @@ final class GitHistoryStore: ObservableObject {
     /// Author menu values for the current project, read once per repository.
     @Published private(set) var authors: [String] = []
     private var authorsPath: String?
+    private var authorsCache: [String: [String]] = [:]
     private var context: GitHistoryContext?
     private var revision: String?
     private var generation = UUID()
+
+    private struct HistoryCacheEntry {
+        var commits: [GitCommit]
+        var graph: [String: GitGraphRow]
+        var graphColumns: Int
+        var revision: String?
+        var reachedEnd: Bool
+        var selectedHash: String?
+    }
+    private var cache: [GitHistoryContext: HistoryCacheEntry] = [:]
 
     /// Search and author/date filters all narrow the log; the graph is only
     /// meaningful for a contiguous range, so it is hidden for the first two.
@@ -45,11 +56,19 @@ final class GitHistoryStore: ObservableObject {
     }
 
     func loadAuthors(for path: String) async {
+        if let cached = authorsCache[path], !cached.isEmpty {
+            authors = cached
+            authorsPath = path
+            return
+        }
         if authorsPath == path, !authors.isEmpty { return }
         authorsPath = path
         let values = await GitService.authors(at: path)
-        guard authorsPath == path, !Task.isCancelled else { return }
-        authors = values
+        guard !Task.isCancelled else { return }
+        authorsCache[path] = values
+        if authorsPath == path {
+            authors = values
+        }
     }
 
     var visibleCommits: [GitCommit] {
@@ -78,20 +97,42 @@ final class GitHistoryStore: ObservableObject {
 
     func refresh(_ next: GitHistoryContext) async {
         guard !Task.isCancelled else { return }
+        if let current = context {
+            cache[current] = HistoryCacheEntry(
+                commits: commits,
+                graph: graph,
+                graphColumns: graphColumns,
+                revision: revision,
+                reachedEnd: reachedEnd,
+                selectedHash: selectedHash
+            )
+        }
         let unchangedContext = context == next
-        let expectedRevision = unchangedContext ? revision : nil
         if !unchangedContext {
             context = next
-            revision = nil
-            await replace([])
-            selectedHash = nil
-            reachedEnd = false
+            if let cached = cache[next] {
+                commits = cached.commits
+                graph = cached.graph
+                graphColumns = cached.graphColumns
+                revision = cached.revision
+                reachedEnd = cached.reachedEnd
+                selectedHash = cached.selectedHash
+            } else {
+                revision = nil
+                commits = []
+                graph = [:]
+                graphColumns = 1
+                selectedHash = nil
+                reachedEnd = false
+            }
         }
+        let expectedRevision = revision
         generation = UUID()
         let request = generation
         defer { if generation == request { loading = false } }
         retryRefresh = true
-        loading = true; failure = nil; requiresRefresh = false
+        loading = true
+        failure = nil; requiresRefresh = false
         var page = await read(next, skip: 0, expectedRevision: expectedRevision)
         guard generation == request, !Task.isCancelled else { return }
         if page.requiresRefresh {
@@ -107,9 +148,16 @@ final class GitHistoryStore: ObservableObject {
         revision = page.revision
         await replace(page.commits)
         reachedEnd = !page.hasMore
-        // replace() reconciles the live selection. Do not restore a selection
-        // captured before the asynchronous read: the user may have changed or
-        // cleared it while Git was running.
+        if let context {
+            cache[context] = HistoryCacheEntry(
+                commits: commits,
+                graph: graph,
+                graphColumns: graphColumns,
+                revision: revision,
+                reachedEnd: reachedEnd,
+                selectedHash: selectedHash
+            )
+        }
     }
 
     func loadMore() async {

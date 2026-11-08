@@ -194,6 +194,8 @@ final class WorkbenchModel: ObservableObject {
     @Published var restartingTaskIDs: Set<UUID> = []
     var isTerminating = false
     private var previewTask: Task<Void, Never>?
+    private var projectRefreshTask: Task<Void, Never>?
+    private var projectSnapshots: [UUID: ProjectSnapshot] = [:]
     var previewWasClosed = false
     private var refreshID = UUID()
     private var environmentLoaded = false
@@ -725,6 +727,26 @@ final class WorkbenchModel: ObservableObject {
         }
     }
 
+    func snapshotProject(_ id: UUID) {
+        projectSnapshots[id] = ProjectSnapshot(
+            fileItems: fileItems,
+            fileTreeRevision: fileTreeRevision,
+            gitChanges: gitChanges,
+            gitStatusError: gitStatusError,
+            gitOperationState: gitOperationState,
+            gitBranch: gitBranch,
+            gitTracking: gitTracking,
+            isGitRepository: isGitRepository,
+            gitBranches: gitBranches,
+            gitRemoteBranches: gitRemoteBranches,
+            gitCommits: gitCommits,
+            gitTags: gitTags,
+            gitStashes: gitStashes,
+            gitRemotes: gitRemotes,
+            commandOutput: commandOutput
+        )
+    }
+
     func selectProject(_ project: Project) {
         guard !showRunSettings, confirmSheetQuit == nil else { return }
         guard selectedProjectID != project.id, projects.contains(where: { $0.id == project.id }) else { return }
@@ -735,11 +757,15 @@ final class WorkbenchModel: ObservableObject {
         conflictDocument = nil
         gitOperationState = nil
         previewWasClosed = false
-        if let current = selectedProject { commitDrafts[current.path] = commitMessage }
+        if let current = selectedProject {
+            commitDrafts[current.path] = commitMessage
+            snapshotProject(current.id)
+        }
         commitMessage = commitDrafts[project.path] ?? ""
         errorMessage = nil
         gitLastResult = gitConsoleEntries[project.id]?.last?.summary(language) ?? ""
         previewTask?.cancel()
+        projectRefreshTask?.cancel()
         refreshID = UUID()
         selectedProjectID = project.id
         UserDefaults.standard.set(project.path, forKey: "selectedProjectPath")
@@ -749,27 +775,47 @@ final class WorkbenchModel: ObservableObject {
         }
         selectedRunConfigurationID = nil
         restoreRunSelection(for: project)
-        commandOutput = project.output
-        selectedFile = ""
-        fileContent = ""
-        filePreviewDocument = nil
-        diffContent = ""
-        historyCommit = nil
-        fileItems = []
-        gitChanges = []
-        gitStatusError = nil
-        gitOperationState = nil
-        gitBranch = ""
-        gitTracking = nil
-        isGitRepository = false
-        gitBranches = []
-        gitRemoteBranches = []
-        gitCommits = []
-        gitTags = []
-        gitStashes = []
-        gitRemotes = []
+        if let cached = projectSnapshots[project.id] {
+            fileItems = cached.fileItems
+            fileTreeRevision = cached.fileTreeRevision
+            gitChanges = cached.gitChanges
+            gitStatusError = cached.gitStatusError
+            gitOperationState = cached.gitOperationState
+            gitBranch = cached.gitBranch
+            gitTracking = cached.gitTracking
+            isGitRepository = cached.isGitRepository
+            gitBranches = cached.gitBranches
+            gitRemoteBranches = cached.gitRemoteBranches
+            gitCommits = cached.gitCommits
+            gitTags = cached.gitTags
+            gitStashes = cached.gitStashes
+            gitRemotes = cached.gitRemotes
+            commandOutput = cached.commandOutput
+        } else {
+            commandOutput = project.output
+            selectedFile = ""
+            fileContent = ""
+            filePreviewDocument = nil
+            diffContent = ""
+            historyCommit = nil
+            fileItems = []
+            gitChanges = []
+            gitStatusError = nil
+            gitOperationState = nil
+            gitBranch = ""
+            gitTracking = nil
+            isGitRepository = false
+            gitBranches = []
+            gitRemoteBranches = []
+            gitCommits = []
+            gitTags = []
+            gitStashes = []
+            gitRemotes = []
+        }
         restoreProjectEditor(project)
-        Task { await refreshProject(project) }
+        projectRefreshTask = Task { [weak self] in
+            await self?.refreshProject(project)
+        }
     }
 
     func selectAdjacentProject(offset: Int) {
@@ -834,6 +880,7 @@ final class WorkbenchModel: ObservableObject {
         terminals.closeProject(id)
         quickCommandDrafts.removeValue(forKey: id)
         projectEditorLocations.removeValue(forKey: id)
+        projectSnapshots.removeValue(forKey: id)
         runningTasks.removeValue(forKey: id)
         gitConsoleEntries.removeValue(forKey: id)
         selectedGitConsoleEntryIDs.removeValue(forKey: id)
@@ -1101,34 +1148,53 @@ final class WorkbenchModel: ObservableObject {
     }
 
     func refreshProject(_ project: Project) async {
-        guard selectedProjectID == project.id else { return }
+        guard !Task.isCancelled, selectedProjectID == project.id else { return }
         let requestID = UUID()
         refreshID = requestID
-        isLoading = true
+        isLoading = fileItems.isEmpty
         let url = URL(fileURLWithPath: NSString(string: project.path).expandingTildeInPath)
-        let tree = await Task.detached(priority: .userInitiated) { FileTreeLoader.load(url: url) }.value
-        guard selectedProjectID == project.id, refreshID == requestID else { return }
-        fileItems = tree
-        fileTreeRevision = UUID()
-        openInitialPreview(project, tree: tree)
-        // These reads have no shared mutable Git state. Start them together so
-        // switching a project does not wait for one probe to finish before the
-        // next one begins; the selected-project/request guards below still
-        // prevent stale results from replacing the active tab.
+        let needsDetection = projects.first(where: { $0.id == project.id }).map { !$0.runConfigurationsLoaded || $0.runConfigurations.isEmpty } ?? false
+
+        // Run all independent filesystem and git queries in parallel
+        async let treeRead = Task.detached(priority: .userInitiated) { FileTreeLoader.load(url: url) }.value
         async let statusRead = GitService.status(at: url.path)
         async let operationRead = GitService.operationState(at: url.path)
+        async let branchesRead = GitService.branches(at: url.path)
+        async let remoteBranchesRead = GitService.remoteBranches(at: url.path)
+        async let commitsRead = GitService.commits(at: url.path)
+        async let tagsRead = GitService.tags(at: url.path)
+        async let stashesRead = GitService.stashes(at: url.path)
+        async let remotesRead = GitService.remotes(at: url.path)
+        async let detectedRead: [RunConfiguration] = needsDetection ? Task.detached(priority: .utility) { ProjectCommandDetector.detect(at: url) }.value : []
+
+        let tree = await treeRead
+        guard !Task.isCancelled, selectedProjectID == project.id, refreshID == requestID else { return }
+        if fileItems != tree {
+            fileItems = tree
+            fileTreeRevision = UUID()
+        }
+        openInitialPreview(project, tree: tree)
+
         let status = await statusRead
         let operation = await operationRead
-        guard selectedProjectID == project.id, refreshID == requestID else { return }
+        let branches = await branchesRead
+        let remoteBranches = await remoteBranchesRead
+        let commits = await commitsRead
+        let tags = await tagsRead
+        let stashes = await stashesRead
+        let remotes = await remotesRead
+        let detected = await detectedRead
+        guard !Task.isCancelled, selectedProjectID == project.id, refreshID == requestID else { return }
+
         gitStatusError = status.error
         guard status.error == nil else {
             // Navigation must remain usable when Git cannot read the repository.
             restoreProjectDiff(project, changes: [])
             gitTracking = nil; isLoading = false; return
         }
-        gitChanges = status.changes
+        if gitChanges != status.changes { gitChanges = status.changes }
         restoreProjectDiff(project, changes: status.changes)
-        gitOperationState = operation
+        if gitOperationState != operation { gitOperationState = operation }
         if !diffContent.isEmpty && historyCommit == nil && conflictDocument == nil {
             let relative = String(selectedFile.dropFirst(url.path.count + 1))
             if let change = status.changes.first(where: { $0.path == relative }) {
@@ -1140,34 +1206,18 @@ final class WorkbenchModel: ObservableObject {
             if FileManager.default.fileExists(atPath: selectedFile) { openFilePath(selectedFile) }
             else { closePreview() }
         }
-        gitBranch = status.branch
-        gitTracking = status.isRepository ? status.tracking : nil
-        isGitRepository = status.isRepository
-        // The remaining repository metadata is independent as well. Keep the
-        // command runner bounded per operation, while allowing the selected
-        // project to populate its tab in parallel.
-        async let branchesRead = GitService.branches(at: url.path)
-        async let remoteBranchesRead = GitService.remoteBranches(at: url.path)
-        async let commitsRead = GitService.commits(at: url.path)
-        async let tagsRead = GitService.tags(at: url.path)
-        async let stashesRead = GitService.stashes(at: url.path)
-        async let remotesRead = GitService.remotes(at: url.path)
-        async let detectedRead = Task.detached(priority: .utility) { ProjectCommandDetector.detect(at: url) }.value
-        let branches = await branchesRead
-        let remoteBranches = await remoteBranchesRead
-        let commits = await commitsRead
-        let tags = await tagsRead
-        let stashes = await stashesRead
-        let remotes = await remotesRead
-        let detected = await detectedRead
-        guard selectedProjectID == project.id, refreshID == requestID else { return }
-        gitBranches = branches
-        gitRemoteBranches = remoteBranches
-        gitCommits = commits
-        gitTags = tags
-        gitStashes = stashes
-        gitRemotes = remotes
-        if let index = projects.firstIndex(where: { $0.id == project.id }) {
+        if gitBranch != status.branch { gitBranch = status.branch }
+        let nextTracking = status.isRepository ? status.tracking : nil
+        if gitTracking != nextTracking { gitTracking = nextTracking }
+        if isGitRepository != status.isRepository { isGitRepository = status.isRepository }
+        if gitBranches != branches { gitBranches = branches }
+        if gitRemoteBranches != remoteBranches { gitRemoteBranches = remoteBranches }
+        if gitCommits != commits { gitCommits = commits }
+        if gitTags != tags { gitTags = tags }
+        if gitStashes != stashes { gitStashes = stashes }
+        if gitRemotes != remotes { gitRemotes = remotes }
+
+        if needsDetection, let index = projects.firstIndex(where: { $0.id == project.id }) {
             if !projects[index].runConfigurationsLoaded || projects[index].runConfigurations.isEmpty {
                 projects[index].runConfigurations = detected
                 projects[index].runConfigurationsLoaded = true
@@ -1180,6 +1230,7 @@ final class WorkbenchModel: ObservableObject {
                 runCommand(command: config.command, workingDirectory: config.workingDirectory, environment: config.environment, configurationID: config.id, name: config.name)
             }
         }
+        snapshotProject(project.id)
         let projectRoot = url.standardizedFileURL.path
         let selectedFileBelongsToProject = selectedFile.hasPrefix(projectRoot + "/")
         if !previewWasClosed, historyCommit == nil, conflictDocument == nil, (!selectedFileBelongsToProject || !FileManager.default.fileExists(atPath: selectedFile)) {
@@ -1218,6 +1269,24 @@ struct Project: Identifiable, Equatable {
     var isRunning = false
     var runConfigurations: [RunConfiguration] = []
     var runConfigurationsLoaded = false
+}
+
+struct ProjectSnapshot {
+    var fileItems: [FileItem] = []
+    var fileTreeRevision: UUID = UUID()
+    var gitChanges: [GitChange] = []
+    var gitStatusError: String? = nil
+    var gitOperationState: GitOperationState? = nil
+    var gitBranch: String = ""
+    var gitTracking: GitBranchTracking? = nil
+    var isGitRepository: Bool = false
+    var gitBranches: [String] = []
+    var gitRemoteBranches: [String] = []
+    var gitCommits: [GitCommit] = []
+    var gitTags: [String] = []
+    var gitStashes: [GitStash] = []
+    var gitRemotes: [GitRemote] = []
+    var commandOutput: String = "准备运行项目命令。"
 }
 
 struct RunConfiguration: Identifiable, Equatable, Codable { var id = UUID(); var name: String; var command: String; var workingDirectory: String; var environment: [String: String] = [:]; var autoStart = false }
@@ -1273,7 +1342,7 @@ enum EnvironmentParser {
     }
 }
 
-struct GitChange: Identifiable {
+struct GitChange: Identifiable, Equatable {
     let path: String
     let originalPath: String?
     /// The two porcelain status columns: index state followed by worktree state.
@@ -1290,8 +1359,8 @@ struct GitChange: Identifiable {
     var displayState: String { state.trimmingCharacters(in: .whitespaces) }
     var displayPath: String { originalPath.map { "\($0) → \(path)" } ?? path }
 }
-struct GitCommit: Identifiable, Sendable { let hash: String; let subject: String; let author: String; let date: String; var parents: [String] = []; var refs: [String] = []; var id: String { hash } }
-struct GitStash: Identifiable { let reference: String; let message: String; let hash: String; var id: String { hash } }
+struct GitCommit: Identifiable, Sendable, Equatable { let hash: String; let subject: String; let author: String; let date: String; var parents: [String] = []; var refs: [String] = []; var id: String { hash } }
+struct GitStash: Identifiable, Equatable { let reference: String; let message: String; let hash: String; var id: String { hash } }
 struct GitRemote: Identifiable, Equatable, Sendable { let name: String; let fetchURL: String; let pushURL: String; var id: String { name } }
 struct EnvironmentItem: Identifiable { let name: String; let path: String; let version: String?; let available: Bool; var id: String { name } }
 struct DockerContainer: Identifiable { let id: String; let name: String; let image: String; let status: String; let ports: String; var isRunning: Bool { status.lowercased().hasPrefix("up") } }
@@ -2196,7 +2265,7 @@ enum GitPromptKind: String, Identifiable {
     }
 }
 
-struct FileItem: Identifiable {
+struct FileItem: Identifiable, Equatable, Sendable {
     var id: String { path.isEmpty ? name : path }
     let name: String
     let icon: String

@@ -44,6 +44,7 @@ struct GitHistoryPanel: View {
     @State private var authorFilter: String? = nil
     @State private var dateFilter = GitHistoryDateFilter()
     @State private var showDateRange = false
+    @State private var lastSeenCommits = ""
     private func text(_ zh: String, _ en: String) -> String { Copy.t(zh, en, language: model.language) }
     private var search: String { history.search }
     private var visibleCommits: [GitCommit] { history.visibleCommits }
@@ -87,9 +88,13 @@ struct GitHistoryPanel: View {
                     .onChange(of: model.selectedProjectID) { _ in
                         history.search = ""; historyScope = "HEAD"; authorFilter = nil
                         dateFilter = GitHistoryDateFilter(); showDateRange = false
-                        reload()
+                        lastSeenCommits = ""
                     }
-                    .onChange(of: model.gitCommits.map { $0.hash + $0.refs.joined(separator: ",") }) { _ in reload() }
+                    .onChange(of: model.gitCommits.map { $0.hash + $0.refs.joined(separator: ",") }) { commits in
+                        let key = commits.joined(separator: ";")
+                        if !lastSeenCommits.isEmpty && lastSeenCommits != key { reload() }
+                        lastSeenCommits = key
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
