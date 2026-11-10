@@ -743,7 +743,14 @@ final class WorkbenchModel: ObservableObject {
             gitTags: gitTags,
             gitStashes: gitStashes,
             gitRemotes: gitRemotes,
-            commandOutput: commandOutput
+            commandOutput: commandOutput,
+            selectedFile: selectedFile,
+            fileContent: fileContent,
+            filePreviewDocument: filePreviewDocument,
+            diffContent: diffContent,
+            diffIsStaged: diffIsStaged,
+            historyCommit: historyCommit,
+            previewWasClosed: previewWasClosed
         )
     }
 
@@ -791,14 +798,22 @@ final class WorkbenchModel: ObservableObject {
             gitStashes = cached.gitStashes
             gitRemotes = cached.gitRemotes
             commandOutput = cached.commandOutput
+            selectedFile = cached.selectedFile
+            fileContent = cached.fileContent
+            filePreviewDocument = cached.filePreviewDocument
+            diffContent = cached.diffContent
+            diffIsStaged = cached.diffIsStaged
+            historyCommit = cached.historyCommit
+            previewWasClosed = cached.previewWasClosed
         } else {
             commandOutput = project.output
             selectedFile = ""
             fileContent = ""
             filePreviewDocument = nil
             diffContent = ""
+            diffIsStaged = false
             historyCommit = nil
-            fileItems = []
+            previewWasClosed = false
             gitChanges = []
             gitStatusError = nil
             gitOperationState = nil
@@ -811,8 +826,19 @@ final class WorkbenchModel: ObservableObject {
             gitTags = []
             gitStashes = []
             gitRemotes = []
+            let url = URL(fileURLWithPath: NSString(string: project.path).expandingTildeInPath)
+            if FileManager.default.fileExists(atPath: url.path) {
+                fileItems = FileTreeLoader.load(url: url)
+            } else {
+                fileItems = []
+            }
+            restoreProjectEditor(project)
+            if selectedFile.isEmpty, !previewWasClosed {
+                if let first = firstFile(in: fileItems) {
+                    openFilePath(first.path)
+                }
+            }
         }
-        restoreProjectEditor(project)
         projectRefreshTask = Task { [weak self] in
             await self?.refreshProject(project)
         }
@@ -1287,6 +1313,13 @@ struct ProjectSnapshot {
     var gitStashes: [GitStash] = []
     var gitRemotes: [GitRemote] = []
     var commandOutput: String = "准备运行项目命令。"
+    var selectedFile: String = ""
+    var fileContent: String = ""
+    var filePreviewDocument: FilePreviewDocument? = nil
+    var diffContent: String = ""
+    var diffIsStaged: Bool = false
+    var historyCommit: String? = nil
+    var previewWasClosed: Bool = false
 }
 
 struct RunConfiguration: Identifiable, Equatable, Codable { var id = UUID(); var name: String; var command: String; var workingDirectory: String; var environment: [String: String] = [:]; var autoStart = false }
@@ -2091,10 +2124,19 @@ enum FileTreeLoader {
         return nil
     }
 
+    static let searchExcludedDirectories: Set<String> = [
+        ".git", ".svn", ".hg",
+        "node_modules", "vendor", "Pods",
+        ".build", ".swiftpm", "target", "dist", "out", ".next", ".nuxt",
+        ".gradle", ".idea", ".vscode",
+        ".venv", "venv", "__pycache__",
+        "runtime", "coverage", ".cache", "tmp", "logs"
+    ]
+
     static func search(url: URL, query: String, limit: Int = 200) -> [FileItem] {
         let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !normalizedQuery.isEmpty else { return [] }
-        let excluded = [".git", "node_modules", ".build", ".swiftpm", "Pods", "target"]
+        let excluded = searchExcludedDirectories
         let rootPath = url.standardizedFileURL.path
         guard let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: []) else { return [] }
         var results: [FileItem] = []

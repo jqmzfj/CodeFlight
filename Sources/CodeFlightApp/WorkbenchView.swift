@@ -736,26 +736,48 @@ struct ProjectTab: View {
     @State private var hovering = false
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 0) {
             Button(action: onSelect) {
                 HStack(spacing: 6) {
-                    Image(systemName: project.isRunning ? "circle.fill" : "folder").font(.system(size: 11)).foregroundStyle(project.isRunning ? .green : .secondary)
-                    Text(project.name).font(.system(size: 11, weight: active ? .medium : .regular)).lineLimit(1).truncationMode(.middle)
-                }.padding(.horizontal, 10).frame(minWidth: 112, idealWidth: 156, maxWidth: 210, alignment: .leading).frame(height: 32)
-            }.buttonStyle(.plain)
-                .accessibilityAddTraits(active ? AccessibilityTraits.isSelected : [])
-                .accessibilityLabel(project.name)
-                .accessibilityValue(active ? Copy.t("当前项目", "Selected project", language: language) : Copy.t("项目标签", "Project tab", language: language))
-                .accessibilityHint(Copy.t("切换到此项目", "Switch to this project", language: language))
-            Button(action: onClose) { Image(systemName: "xmark").font(.system(size: 9)).frame(width: 18, height: 24) }
-                .buttonStyle(.plain).foregroundStyle(.secondary).opacity(hovering || active ? 1 : 0)
-                .help(Copy.t("关闭项目", "Close project", language: language))
-                .accessibilityLabel(Copy.t("关闭项目 ", "Close project ", language: language) + project.name)
+                    Image(systemName: project.isRunning ? "circle.fill" : "folder")
+                        .font(.system(size: 11))
+                        .foregroundStyle(project.isRunning ? .green : .secondary)
+                    Text(project.name)
+                        .font(.system(size: 11, weight: active ? .medium : .regular))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .padding(.leading, 10)
+                .padding(.trailing, 6)
+                .frame(minWidth: 100, idealWidth: 140, maxWidth: 200, alignment: .leading)
+                .frame(height: 32)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(active ? AccessibilityTraits.isSelected : [])
+            .accessibilityLabel(project.name)
+            .accessibilityValue(active ? Copy.t("当前项目", "Selected project", language: language) : Copy.t("项目标签", "Project tab", language: language))
+            .accessibilityHint(Copy.t("切换到此项目", "Switch to this project", language: language))
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9))
+                    .frame(width: 18, height: 24)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .opacity(hovering || active ? 1 : 0)
+            .help(Copy.t("关闭项目", "Close project", language: language))
+            .accessibilityLabel(Copy.t("关闭项目 ", "Close project ", language: language) + project.name)
+
             Spacer().frame(width: 4)
-        }.fixedSize(horizontal: true, vertical: false)
+        }
+        .fixedSize(horizontal: true, vertical: false)
         .background(active ? WorkbenchChrome.selectedSurface : (hovering ? Color.primary.opacity(0.035) : .clear),
                     in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .contentShape(Rectangle())
+        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .onTapGesture { onSelect() }
         .help(project.path)
         .contextMenu {
             Button(Copy.t("在 Finder 中显示", "Reveal in Finder", language: language), action: onReveal)
